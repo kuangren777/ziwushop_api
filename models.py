@@ -146,20 +146,20 @@ class Slides(Model):
 
 class Cart(Model):
     id = fields.IntField(pk=True)
-    user_id = fields.IntField()
-    goods_id = fields.IntField()
+    user = fields.ForeignKeyField('models.Users', related_name='cart')
+    goods = fields.ForeignKeyField('models.Goods', related_name='cart')
     num = fields.IntField(default=1, null=True)
     is_checked = fields.IntField(default=1, null=True)
     created_at = fields.DatetimeField(auto_now_add=True, null=True)
     updated_at = fields.DatetimeField(auto_now=True, null=True)
 
     def __str__(self):
-        return f"Cart Item: {self.goods_id} x {self.num} for user {self.user_id}"
+        return f"Cart Item: {self.goods} x {self.num} for user {self.user}"
 
 
 class Address(Model):
     id = fields.IntField(pk=True)
-    user_id = fields.IntField()
+    user = fields.ForeignKeyField('models.Users', related_name='address')
     name = fields.CharField(max_length=255)
     province = fields.CharField(max_length=255)
     city = fields.CharField(max_length=255)
