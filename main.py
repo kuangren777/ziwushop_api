@@ -3,6 +3,9 @@
 # @Author  : KuangRen777
 # @File    : main.py
 # @Tags    :
+"""
+首先要运行redis-server
+"""
 from fastapi import FastAPI, Request
 # 注册数据库
 from tortoise.contrib.fastapi import register_tortoise

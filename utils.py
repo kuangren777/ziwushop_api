@@ -3,7 +3,47 @@
 # @Author  : KuangRen777
 # @File    : utils.py
 # @Tags    :
-from datetime import datetime
+from datetime import datetime, timedelta
+
+import jwt
+import time
+# redis
+import redis
+from settings import *
+
+
+# 配置Redis连接
+redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)  # decode_responses确保返回的数据是字符串
+
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def add_token_to_blacklist(token: str) -> bool:
+    try:
+        # 解码JWT令牌以获取过期时间
+        payload = jwt.decode(token, options={"verify_signature": False})  # 关闭签名验证仅用于获取声明
+        exp = payload.get('exp')
+
+        # 计算令牌的剩余有效时间
+        current_time = time.time()
+        ttl = exp - current_time  # Time to live
+
+        if ttl > 0:
+            # 将令牌添加到Redis黑名单
+            redis_client.setex(token, int(ttl), 'blacklisted')
+        return True
+    except Exception as e:
+        print(f"Error adding token to blacklist: {e}")
+        return False
 
 
 def transfer_time(input_time_str):
