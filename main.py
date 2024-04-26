@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 # 注册路由
 from api.authority import api_auth
 from api.index import api_index
+from api.goods import api_goods
 
 # 启动网页服务
 import uvicorn
@@ -47,6 +48,7 @@ app.mount("/upimg/slides_img", StaticFiles(directory="upimg/slides_img"), name="
 # 注册路由
 app.include_router(api_auth, prefix='/api', tags=['图书接口'])
 app.include_router(api_index, prefix='/api', tags=['作者接口'])
+app.include_router(api_goods, prefix='/api', tags=['商品接口'])
 
 
 if __name__ == '__main__':
