@@ -3,9 +3,12 @@
 # @Author  : KuangRen777
 # @File    : goods.py
 # @Tags    :
-from fastapi import APIRouter, Request
-from models import Goods, Category
+from fastapi import APIRouter, Request, HTTPException
+from models import Goods, Category, Comments, Users
 from tortoise.functions import Count
+from tortoise.query_utils import Prefetch
+import json
+
 
 from utils import *
 
@@ -114,4 +117,90 @@ async def goods(request: Request):
         "recommend_goods": recommend_goods,
         "categories": categories_tree,
         # "total_pages": total_pages,
+    }
+
+
+@api_goods.get("/goods/{good_id}")
+async def get_good_details(good_id: int):
+    """
+    异步获取指定ID商品及其关联数据。
+
+    参数:
+    - good_id: 商品的唯一标识符。
+
+    返回值:
+    - goods: 包含指定商品及其预加载的相关数据的对象。例如，商品评论、用户信息和商品类别。
+    """
+    goods = await Goods.filter(id=good_id).prefetch_related(
+        Prefetch("reviews", queryset=Comments.all().prefetch_related(Prefetch("user", queryset=Users.all()), "order")),
+        # 预加载商品的所有评论及其用户和订单信息
+        Prefetch("user", queryset=Users.all()),  # 预加载商品的发布用户信息
+        Prefetch("category", queryset=Category.all())  # 预加载商品所属的类别信息
+    ).first()  # 获取查询结果中的第一个商品
+
+    if not goods:
+        raise HTTPException(status_code=404, detail="Goods not found")
+
+    # Assuming 'like_goods' are similar items in the same category excluding the current item
+    like_goods = await Goods.filter(category=goods.category).exclude(id=good_id).limit(5).all()
+
+    # Check if goods.pics is already a dict or list; if not, parse it
+    goods_pics = goods.pics if isinstance(goods.pics, (dict, list)) else json.loads(goods.pics) if goods.pics else []
+
+    return {
+        "goods": {
+            "id": goods.id,
+            "user_id": goods.user.id,
+            # "user_name": goods.user.name,
+            "category_id": goods.category.id,
+            # "category_name": goods.category.name,
+            "title": goods.title,
+            "description": goods.description,
+            "price": goods.price,
+            "stock": goods.stock,
+            "sales": goods.sales,
+            "cover": goods.cover,
+            "pics": goods.pics,
+            "is_on": 1 if bool(goods.is_on) else 0,
+            "is_recommend": 1 if bool(goods.is_recommend) else 0,
+            "details": goods.details,
+            "created_at": transfer_time(str(goods.created_at.isoformat())) if goods.created_at else None,
+            "updated_at": transfer_time(str(goods.updated_at.isoformat())) if goods.updated_at else None,
+            "collects_count": 0,
+            "cover_url": goods.cover,
+            "pics_url": goods_pics,
+            "is_collected": 0,
+            "comments": [
+                {
+                    "id": comment.id,
+                    "user_id": comment.user.id,
+                    # "user_name": comment.user.name,
+                    "order_id": comment.order.id,
+                    "goods_id": goods.id,
+                    "rate": comment.rate,
+                    "star": comment.star,
+                    "content": comment.content,
+                    "reply": comment.reply,
+                    "pics": json.loads(comment.pics) if comment.pics else [],
+                    "created_at": transfer_time(str(comment.created_at.isoformat())) if comment.created_at else None,
+                    "updated_at": transfer_time(str(comment.updated_at.isoformat())) if comment.updated_at else None,
+                    "user": {
+                        "id": comment.user.id,
+                        "name": comment.user.name,
+                        "avatar": comment.user.avatar,
+                        "avatar_url": f'https://127.0.0.1:8888/upimg/avatar/{comment.user.avatar}.png'
+                        if comment.user.avatar else None,
+                    }
+                } for comment in goods.reviews
+            ]
+        },
+        "like_goods": [
+            {
+                "id": lg.id,
+                "title": lg.title,
+                "price": lg.price,
+                "cover_url": lg.cover,
+                "sales": lg.sales
+            } for lg in like_goods
+        ]
     }
