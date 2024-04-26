@@ -49,7 +49,7 @@ app.mount("/upimg/comments_pics", StaticFiles(directory="upimg/comments_pics"), 
 app.mount("/upimg/slides_img", StaticFiles(directory="upimg/slides_img"), name="slides_img")
 
 # 注册路由
-app.include_router(api_auth, prefix='/api', tags=['图书接口'])
+app.include_router(api_auth, prefix='/api', tags=['权限接口'])
 app.include_router(api_index, prefix='/api', tags=['作者接口'])
 app.include_router(api_goods, prefix='/api', tags=['商品接口'])
 

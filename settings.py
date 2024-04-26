@@ -31,7 +31,3 @@ TORTOISE_ORM = {
     'use_tz': False,
     'timezone': 'Asia/Shanghai'
 }
-
-SECRET_KEY = 'LUOMINGYUAUTH'
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 600  # token有效时间60分钟

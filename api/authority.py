@@ -11,11 +11,12 @@ from passlib.context import CryptContext
 import jwt
 
 from datetime import datetime, timedelta
-from settings import *
 from utils import *
+from PASSWORD import *
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import OAuth2PasswordBearer
+from email_sender import send_verification_email
 
 
 # 定义数据模型
@@ -30,6 +31,21 @@ class UserRegistrationModel(BaseModel):
 class LoginModel(BaseModel):
     email: EmailStr
     password: str
+
+
+class PasswordUpdateModel(BaseModel):
+    old_password: str = Field(..., description="旧密码")
+    password: str = Field(..., description="新密码")
+    password_confirmation: str = Field(..., description="确认新密码")
+
+
+class EmailRequestModel(BaseModel):
+    email: EmailStr
+
+
+class EmailUpdateRequest(BaseModel):
+    email: EmailStr
+    code: str
 
 
 # 密码加密配置
@@ -127,7 +143,7 @@ async def refresh_token(token: str = Depends(oauth2_scheme)):
             raise HTTPException(status_code=401, detail="Could not validate credentials")
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.JWTError:
+    except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Could not validate token")
 
     success = add_token_to_blacklist(token)
@@ -145,3 +161,113 @@ async def refresh_token(token: str = Depends(oauth2_scheme)):
         "token_type": "Bearer",
         "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
     }
+
+
+@api_auth.post("/auth/password/update", status_code=status.HTTP_204_NO_CONTENT)
+async def update_password(password_update: PasswordUpdateModel, token: str = Depends(oauth2_scheme)):
+    if redis_client.get(token):
+        raise HTTPException(status_code=401, detail="Token is blacklisted")
+
+    # 解码JWT token并获取用户信息
+    credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+        user = await Users.get(email=user_email)
+    except jwt.PyJWTError:
+        raise credentials_exception
+
+    # 验证旧密码
+    if not pwd_context.verify(password_update.old_password, user.password):
+        raise HTTPException(status_code=422, detail={
+            "message": "The given data was invalid.",
+            "errors": {"old_password": ["旧密码不正确"]},
+            "status_code": 422
+        })
+
+    # 验证新密码和确认密码是否匹配
+    if password_update.password != password_update.password_confirmation:
+        raise HTTPException(status_code=422, detail={
+            "message": "The given data was invalid.",
+            "errors": {"password_confirmation": ["密码与确认密码不一致"]},
+            "status_code": 422
+        })
+
+    # 更新密码
+    user.password = pwd_context.hash(password_update.password)
+    await user.save()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@api_auth.post("/auth/email/code", status_code=status.HTTP_204_NO_CONTENT)
+async def get_email_code(email_data: EmailRequestModel, token: str = Depends(oauth2_scheme)):
+    # 解码JWT token并获取用户信息
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+        user = await Users.get(email=user_email)
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # 验证新邮箱是否已被使用
+    if await Users.filter(email=email_data.email).exists():
+        raise HTTPException(status_code=422, detail={
+            "message": "The given data was invalid.",
+            "errors": {"email": ["邮箱已被注册。"]},
+            "status_code": 422
+        })
+
+    # 生成验证码
+    verification_code = generate_verification_code()
+
+    # 保存验证码
+    save_verification_code(user_email, verification_code)
+
+    send_verification_email(user_email, verification_code)
+
+    return {}
+
+
+@api_auth.patch("/auth/email/update", status_code=status.HTTP_204_NO_CONTENT)
+async def update_email(request: EmailUpdateRequest, token: str = Depends(oauth2_scheme)):
+    # Decode JWT token to get user Email.
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+        if not user_email:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user = await Users.get(email=user_email)
+
+    # Validate the code from Redis
+    redis_key = f"email_code:{user.email}"
+    stored_code = redis_client.get(redis_key)
+    if not stored_code or stored_code != request.code:
+        raise HTTPException(status_code=422, detail={
+            "message": "The given data was invalid.",
+            "errors": {"code": ["验证码不正确或已过期"]},
+            "status_code": 422
+        })
+
+    # Check if email is already in use
+    if await Users.filter(email=request.email).exists():
+        raise HTTPException(status_code=422, detail={
+            "message": "The given data was invalid.",
+            "errors": {"email": ["邮箱已被注册。"]},
+            "status_code": 422
+        })
+
+    # Update the user's email
+    user.email = request.email
+    await user.save()
+
+    # Clean up the code from Redis after successful update
+    redis_client.delete(redis_key)
+
+    return {}
+

@@ -9,11 +9,22 @@ import jwt
 import time
 # redis
 import redis
-from settings import *
+from PASSWORD import *
 
+import secrets
 
 # 配置Redis连接
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)  # decode_responses确保返回的数据是字符串
+
+
+def generate_verification_code(length=6):
+    # 生成一个六位数的验证码
+    return ''.join(secrets.choice('0123456789') for i in range(length))
+
+
+def save_verification_code(email, code):
+    # 保存验证码到Redis，有效期为600秒（10分钟）
+    redis_client.setex(f"email_code:{email}", 600, code)
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
