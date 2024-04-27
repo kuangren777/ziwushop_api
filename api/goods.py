@@ -3,11 +3,12 @@
 # @Author  : KuangRen777
 # @File    : goods.py
 # @Tags    :
-from fastapi import APIRouter, Request, HTTPException
-from models import Goods, Category, Comments, Users
+from fastapi import APIRouter, Request, HTTPException, Depends, status
+from models import Goods, Category, Comments, Users, OrderDetails, Orders
 from tortoise.functions import Count
 from tortoise.query_utils import Prefetch
 import json
+from pydantic import BaseModel
 
 
 from utils import *
@@ -44,17 +45,24 @@ class GoodsTemp:
 
 
 class CategoryTemp:
-    def __init__(self, id, name, pid, level, status, seq):
+    def __init__(self, id, name, pid, level, status_, seq):
         self.id = id
         self.name = name
         self.pid = pid
         self.level = level
-        self.status = status
+        self.status = status_
         self.seq = seq
         self.children = []
 
     def add_child(self, child):
         self.children.append(child)
+
+
+class CommentRequest(BaseModel):
+    goods_id: int
+    content: str
+    rate: int = None
+    star: int = None
 
 
 @api_goods.get('/goods')
@@ -204,3 +212,39 @@ async def get_good_details(good_id: int):
             } for lg in like_goods
         ]
     }
+
+
+@api_goods.post("/goods/comment", status_code=status.HTTP_201_CREATED)
+async def post_comment(request: CommentRequest, token: str = Depends(oauth2_scheme)):
+    # Decode the JWT token to authenticate the user
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+        user = await Users.get(email=user_email)
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Ensure the user has purchased the goods and confirmed receipt
+    order = await Orders.filter(user_id=user.id, order_details__goods__id=request.goods_id, status=4).first()
+    if not order:
+        raise HTTPException(status_code=400, detail={"message": "商品还没有购买，不能参与评价", "status_code": 400})
+
+    # Check if the user has already commented on this goods
+    existing_comment = await Comments.filter(user_id=user.id, goods_id=request.goods_id).exists()
+    if existing_comment:
+        raise HTTPException(status_code=400, detail={"message": "此商品已经评论过了", "status_code": 400})
+
+    # Create the comment
+    new_comment = await Comments.create(
+        user_id=user.id,
+        goods_id=request.goods_id,
+        content=request.content,
+        rate=request.rate,
+        star=request.star,
+        order_id=order.id,
+    )
+
+    return {"message": "评论创建成功", "status_code": 201}
+
+
+

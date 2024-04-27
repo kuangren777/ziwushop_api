@@ -4,6 +4,7 @@
 # @File    : utils.py
 # @Tags    :
 from datetime import datetime, timedelta
+from fastapi.security import OAuth2PasswordBearer
 
 import jwt
 import time
@@ -12,9 +13,14 @@ import redis
 from PASSWORD import *
 
 import secrets
+from passlib.context import CryptContext
 
 # 配置Redis连接
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)  # decode_responses确保返回的数据是字符串
+
+# 密码加密配置
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def generate_verification_code(length=6):

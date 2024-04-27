@@ -48,14 +48,8 @@ class EmailUpdateRequest(BaseModel):
     code: str
 
 
-# 密码加密配置
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # 路由
 api_auth = APIRouter()
-
-# JWT验证
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 @api_auth.post("/auth/register", status_code=status.HTTP_201_CREATED)
