@@ -65,7 +65,7 @@ class CommentRequest(BaseModel):
     star: int = None
 
 
-@api_goods.get('/')
+@api_goods.get('')
 async def goods(request: Request):
     # Extract query parameters
     page = int(request.query_params.get('page', 1)) - 1

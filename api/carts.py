@@ -103,7 +103,7 @@ class CartCheckedUpdateRequest(BaseModel):
     cart_ids: List[int] = Field(..., description="List of cart IDs to be checked")
 
 
-@api_cart.post("/", status_code=status.HTTP_201_CREATED)
+@api_cart.post("", status_code=status.HTTP_201_CREATED)
 async def add_to_cart(item_request: CartItemAddRequest, token: str = Depends(oauth2_scheme)):
     # Decode JWT token to authenticate and get user ID
     try:
@@ -136,7 +136,7 @@ async def add_to_cart(item_request: CartItemAddRequest, token: str = Depends(oau
     return {"message": "Added to cart successfully"}
 
 
-@api_cart.get("/")
+@api_cart.get("")
 async def get_cart_items(request: Request, token: str = Depends(oauth2_scheme)):
     include = request.query_params.get("include")
     try:
