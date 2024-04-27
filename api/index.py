@@ -78,7 +78,7 @@ class SlidesTemp:
         }
 
 
-@api_index.get('/index')
+@api_index.get('/')
 async def index(request: Request):
     json_data = request.query_params
     page = int(json_data.get('page', 1)) - 1  # API 通常从第1页开始计数，而程序内部从第0页开始

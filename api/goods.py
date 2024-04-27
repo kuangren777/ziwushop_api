@@ -65,7 +65,7 @@ class CommentRequest(BaseModel):
     star: int = None
 
 
-@api_goods.get('/goods')
+@api_goods.get('/')
 async def goods(request: Request):
     # Extract query parameters
     page = int(request.query_params.get('page', 1)) - 1
@@ -128,7 +128,7 @@ async def goods(request: Request):
     }
 
 
-@api_goods.get("/goods/{good_id}")
+@api_goods.get("/{good_id}")
 async def get_good_details(good_id: int):
     """
     异步获取指定ID商品及其关联数据。
@@ -214,7 +214,7 @@ async def get_good_details(good_id: int):
     }
 
 
-@api_goods.post("/goods/comment", status_code=status.HTTP_201_CREATED)
+@api_goods.post("/comment", status_code=status.HTTP_201_CREATED)
 async def post_comment(request: CommentRequest, token: str = Depends(oauth2_scheme)):
     # Decode the JWT token to authenticate the user
     try:

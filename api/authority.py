@@ -52,7 +52,7 @@ class EmailUpdateRequest(BaseModel):
 api_auth = APIRouter()
 
 
-@api_auth.post("/auth/register", status_code=status.HTTP_201_CREATED)
+@api_auth.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user(user: UserRegistrationModel):
     if user.name is None or user.name == "":
         return HTTPException(status_code=422, detail={"message": "The given data was invalid.",
@@ -86,7 +86,7 @@ async def register_user(user: UserRegistrationModel):
     return {"token": token}
 
 
-@api_auth.post("/auth/login")
+@api_auth.post("/login")
 async def login(user_credentials: LoginModel):
     # 根据邮箱查找用户
     user = await Users.get_or_none(email=user_credentials.email)
@@ -113,7 +113,7 @@ async def login(user_credentials: LoginModel):
     }
 
 
-@api_auth.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+@api_auth.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(request: Request, token: str = Depends(oauth2_scheme)):
     print(f"Authorization header: {request.headers.get('Authorization')}")
     # 假设有一个函数add_token_to_blacklist处理令牌黑名单
@@ -124,7 +124,7 @@ async def logout(request: Request, token: str = Depends(oauth2_scheme)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@api_auth.post("/auth/refresh")
+@api_auth.post("/refresh")
 async def refresh_token(token: str = Depends(oauth2_scheme)):
     if redis_client.get(token):
         raise HTTPException(status_code=401, detail="Token is blacklisted")
@@ -157,7 +157,7 @@ async def refresh_token(token: str = Depends(oauth2_scheme)):
     }
 
 
-@api_auth.post("/auth/password/update", status_code=status.HTTP_204_NO_CONTENT)
+@api_auth.post("/password/update", status_code=status.HTTP_204_NO_CONTENT)
 async def update_password(password_update: PasswordUpdateModel, token: str = Depends(oauth2_scheme)):
     if redis_client.get(token):
         raise HTTPException(status_code=401, detail="Token is blacklisted")
@@ -194,7 +194,7 @@ async def update_password(password_update: PasswordUpdateModel, token: str = Dep
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@api_auth.post("/auth/email/code", status_code=status.HTTP_204_NO_CONTENT)
+@api_auth.post("/email/code", status_code=status.HTTP_204_NO_CONTENT)
 async def get_email_code(email_data: EmailRequestModel, token: str = Depends(oauth2_scheme)):
     # 解码JWT token并获取用户信息
     try:
@@ -223,7 +223,7 @@ async def get_email_code(email_data: EmailRequestModel, token: str = Depends(oau
     return {}
 
 
-@api_auth.patch("/auth/email/update", status_code=status.HTTP_204_NO_CONTENT)
+@api_auth.patch("/email/update", status_code=status.HTTP_204_NO_CONTENT)
 async def update_email(request: EmailUpdateRequest, token: str = Depends(oauth2_scheme)):
     # Decode JWT token to get user Email.
     try:

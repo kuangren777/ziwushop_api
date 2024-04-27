@@ -51,11 +51,11 @@ app.mount("/upimg/comments_pics", StaticFiles(directory="upimg/comments_pics"), 
 app.mount("/upimg/slides_img", StaticFiles(directory="upimg/slides_img"), name="slides_img")
 
 # 注册路由
-app.include_router(api_auth, prefix='/api', tags=['权限接口'])
-app.include_router(api_index, prefix='/api', tags=['首页接口'])
-app.include_router(api_goods, prefix='/api', tags=['商品接口'])
-app.include_router(api_user, prefix='/api', tags=['用户接口'])
-app.include_router(api_cart, prefix='/api', tags=['购物车接口'])
+app.include_router(api_auth, prefix='/api/auth', tags=['权限接口'])
+app.include_router(api_index, prefix='/api/index', tags=['首页接口'])
+app.include_router(api_goods, prefix='/api/goods', tags=['商品接口'])
+app.include_router(api_user, prefix='/api/user', tags=['用户接口'])
+app.include_router(api_cart, prefix='/api/carts', tags=['购物车接口'])
 
 
 if __name__ == '__main__':

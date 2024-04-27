@@ -39,7 +39,7 @@ class UpdateUserModel(BaseModel):
     name: str
 
 
-@api_user.get("/user", response_model=UserResponseModel)
+@api_user.get("/", response_model=UserResponseModel)
 async def get_user_details(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -56,7 +56,7 @@ async def get_user_details(token: str = Depends(oauth2_scheme)):
     return user
 
 
-@api_user.put("/user", status_code=status.HTTP_204_NO_CONTENT)
+@api_user.put("/", status_code=status.HTTP_204_NO_CONTENT)
 async def update_user_details(user_data: UpdateUserModel, token: str = Depends(oauth2_scheme)):
     # Decode the JWT token to authenticate and get the user id
     try:
@@ -79,7 +79,7 @@ async def update_user_details(user_data: UpdateUserModel, token: str = Depends(o
     return {}
 
 
-@api_user.post("/user/avatar_oss", status_code=status.HTTP_204_NO_CONTENT)
+@api_user.post("/avatar_oss", status_code=status.HTTP_204_NO_CONTENT)
 async def update_avatar(avatar: UploadFile = File(...), token: str = Depends(oauth2_scheme)):
     # Decode JWT to authenticate and get user ID
     try:
@@ -117,7 +117,7 @@ async def update_avatar(avatar: UploadFile = File(...), token: str = Depends(oau
     return {}
 
 
-@api_user.post("/user/avatar", status_code=status.HTTP_204_NO_CONTENT)
+@api_user.post("/avatar", status_code=status.HTTP_204_NO_CONTENT)
 async def update_avatar(avatar: UploadFile = File(...), token: str = Depends(oauth2_scheme)):
     # Decode the JWT to authenticate and get user ID
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
