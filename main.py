@@ -20,6 +20,7 @@ from api.authority import api_auth
 from api.index import api_index
 from api.goods import api_goods
 from api.user import api_user
+from api.carts import api_cart
 
 # 启动网页服务
 import uvicorn
@@ -54,6 +55,7 @@ app.include_router(api_auth, prefix='/api', tags=['权限接口'])
 app.include_router(api_index, prefix='/api', tags=['首页接口'])
 app.include_router(api_goods, prefix='/api', tags=['商品接口'])
 app.include_router(api_user, prefix='/api', tags=['用户接口'])
+app.include_router(api_cart, prefix='/api', tags=['购物车接口'])
 
 
 if __name__ == '__main__':
