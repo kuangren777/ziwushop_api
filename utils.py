@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordBearer
 import time
 import string
 import random
+import json
 from models import *
 
 # 权限控制
@@ -25,6 +26,9 @@ from passlib.context import CryptContext
 
 # pydantic
 from tortoise.contrib.pydantic import pydantic_model_creator
+
+# 快递查询
+from delivery_query import KuaiDi100
 
 from PASSWORD import *
 
@@ -48,6 +52,14 @@ if USE_OSS:
     # Initialize OSS
     auth = oss2.Auth(ACCESS_KEY_ID, ACCESS_KEY_SECRET)
     bucket = oss2.Bucket(auth, ENDPOINT, BUCKET_NAME)
+
+
+def delivery_query(com, num, phone, ship_from, ship_to):
+    result = KuaiDi100().track(com, num, phone, ship_from, ship_to)
+    if 'result' in json.loads(result):
+        return '暂无物流信息'
+    else:
+        return json.loads(result)['data'][0]['context']
 
 
 def generate_order_no():
