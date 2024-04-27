@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordBearer
 import time
 import string
 import random
+from models import *
 
 # 权限控制
 import jwt
@@ -22,7 +23,18 @@ import oss2
 import secrets
 from passlib.context import CryptContext
 
+# pydantic
+from tortoise.contrib.pydantic import pydantic_model_creator
+
 from PASSWORD import *
+
+# Create Pydantic models from Tortoise models
+CartPydantic = pydantic_model_creator(Cart, name="Cart")
+GoodsPydantic = pydantic_model_creator(Goods, name="Goods")
+AddressPydantic = pydantic_model_creator(Address, name="Address")
+OrderPydantic = pydantic_model_creator(Orders, name="Orders")
+OrderDetailPydantic = pydantic_model_creator(OrderDetails, name="OrderDetail")
+UserPydantic = pydantic_model_creator(Users, name="User")
 
 
 # 配置Redis连接
@@ -36,6 +48,10 @@ if USE_OSS:
     # Initialize OSS
     auth = oss2.Auth(ACCESS_KEY_ID, ACCESS_KEY_SECRET)
     bucket = oss2.Bucket(auth, ENDPOINT, BUCKET_NAME)
+
+
+def generate_order_no():
+    return generate_random_string(15)
 
 
 def generate_random_string(length):
