@@ -196,7 +196,7 @@ async def get_good_details(good_id: int):
                         "id": comment.user.id,
                         "name": comment.user.name,
                         "avatar": comment.user.avatar,
-                        "avatar_url": f'https://127.0.0.1:8888/upimg/avatar/{comment.user.avatar}.png'
+                        "avatar_url": f'https://127.0.0.1:8888/upimg/avatars/{comment.user.avatar}.png'
                         if comment.user.avatar else None,
                     }
                 } for comment in goods.reviews

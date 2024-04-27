@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from api.authority import api_auth
 from api.index import api_index
 from api.goods import api_goods
+from api.user import api_user
 
 # 启动网页服务
 import uvicorn
@@ -42,7 +43,7 @@ register_tortoise(
 )
 
 # 设置静态文件路由
-app.mount("/upimg/avatar", StaticFiles(directory="upimg/avatar"), name="avatar")
+app.mount("/upimg/avatars", StaticFiles(directory="upimg/avatars"), name="avatars")
 app.mount("/upimg/goods_cover", StaticFiles(directory="upimg/goods_cover"), name="goods_cover")
 app.mount("/upimg/goods_pics", StaticFiles(directory="upimg/goods_pics"), name="goods_pics")
 app.mount("/upimg/comments_pics", StaticFiles(directory="upimg/comments_pics"), name="comments_pics")
@@ -52,6 +53,7 @@ app.mount("/upimg/slides_img", StaticFiles(directory="upimg/slides_img"), name="
 app.include_router(api_auth, prefix='/api', tags=['权限接口'])
 app.include_router(api_index, prefix='/api', tags=['首页接口'])
 app.include_router(api_goods, prefix='/api', tags=['商品接口'])
+app.include_router(api_user, prefix='/api', tags=['用户接口'])
 
 
 if __name__ == '__main__':

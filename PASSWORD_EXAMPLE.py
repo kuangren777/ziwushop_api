@@ -9,3 +9,10 @@ sender_password = ""  # 发件人密码
 SECRET_KEY = ''
 ALGORITHM = ""
 ACCESS_TOKEN_EXPIRE_MINUTES = 600  # token有效时间60分钟
+
+USE_OSS = False
+ACCESS_KEY_ID = ""
+ACCESS_KEY_SECRET = ""
+BUCKET_NAME = ''
+ENDPOINT = ''
+

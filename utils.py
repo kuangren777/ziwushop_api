@@ -5,15 +5,25 @@
 # @Tags    :
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
-
-import jwt
 import time
+import string
+import random
+
+# 权限控制
+import jwt
+
 # redis
 import redis
-from PASSWORD import *
 
+# 阿里云OSS
+import oss2
+
+# 密码加密
 import secrets
 from passlib.context import CryptContext
+
+from PASSWORD import *
+
 
 # 配置Redis连接
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)  # decode_responses确保返回的数据是字符串
@@ -21,6 +31,19 @@ redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=T
 # 密码加密配置
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+if USE_OSS:
+    # Initialize OSS
+    auth = oss2.Auth(ACCESS_KEY_ID, ACCESS_KEY_SECRET)
+    bucket = oss2.Bucket(auth, ENDPOINT, BUCKET_NAME)
+
+
+def generate_random_string(length):
+    # 生成包含数字和字母的所有可选字符
+    characters = string.ascii_letters + string.digits
+    # 使用random.choices从可选字符中随机选择指定长度的字符，然后将其连接起来
+    random_string = ''.join(random.choices(characters, k=length))
+    return random_string
 
 
 def generate_verification_code(length=6):
@@ -69,6 +92,13 @@ def transfer_time(input_time_str):
 
     # 将 datetime 对象格式化为所需格式的时间字符串
     output_time_str = input_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    return output_time_str
+
+
+def transfer_time_datetime(input_time_datetime):
+    # 将 datetime 对象格式化为所需格式的时间字符串
+    output_time_str = input_time_datetime.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     return output_time_str
 
