@@ -631,9 +631,9 @@ async def confirm_order_receipt(
 
     # Retrieve the order from the database
     order = await Orders.get_or_none(id=order_id)
-    order_user = await order.user
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    order_user = await order.user
 
     # Ensure the order belongs to the user making the request
     if order_user.id != user.id:
@@ -675,9 +675,9 @@ async def comment_on_product(
 
     # Retrieve the order
     order = await Orders.get_or_none(id=order_id)
-    order_user = await order.user
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    order_user = await order.user
 
     # Ensure the order belongs to the user making the request
     if order_user.id != user.id:
@@ -731,9 +731,9 @@ async def simulate_payment(
 
     # Retrieve the order
     order = await Orders.get_or_none(id=order_id)
-    order_user = await order.user
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    order_user = await order.user
 
     # Ensure the order belongs to the user making the request
     if order_user.id != user.id:
@@ -804,9 +804,10 @@ async def get_payment_qr_code(
 
     # Fetch the order to validate status
     order = await Orders.get_or_none(id=order_id)
-    order_user = await order.user
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    order_user = await order.user
+
     if order_user.id != user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this order")
     if order.status != 1:
