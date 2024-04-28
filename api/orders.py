@@ -710,11 +710,6 @@ async def comment_on_product(
     return {"message": "Comment added successfully", "comment_id": comment.id}, 201
 
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
-
-router = APIRouter()
-
-
 @api_orders.patch("/{order_id}/paytest")
 async def simulate_payment(
         order_id: int = Path(..., description="The ID of the order to simulate payment for"),
@@ -785,4 +780,76 @@ async def simulate_payment(
     await order.save()
 
     return payment_details
+
+
+"""这个功能没有测试，因为好像可以直接用模拟支付"""
+@api_orders.get("/{order_id}/pay")
+async def get_payment_qr_code(
+    order_id: int = Path(..., description="The ID of the order to generate QR code for"),
+    payment_type: str = Query(..., regex="^(aliyun|wechat)$", description="The payment platform to use"),
+    token: str = Depends(oauth2_scheme)
+):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Ensure the user exists
+    user = await Users.get_or_none(email=user_email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    else:
+        user_id = user.id
+
+    # Fetch the order to validate status
+    order = await Orders.get_or_none(id=order_id)
+    order_user = await order.user
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order_user.id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this order")
+    if order.status != 1:
+        raise HTTPException(status_code=400, detail="订单状态异常, 请重新下单")
+
+    # Depending on the payment type, prepare the response
+    if payment_type == "aliyun":
+        qr_code_url = "/upimg/pay_qrcode.jpg"
+        response = {
+            "code": "10000",
+            "msg": "Success",
+            "out_trade_no": str(order_id),
+            "qr_code_url": qr_code_url
+        }
+    elif payment_type == "wechat":
+        qr_code_url = "/upimg/pay_qrcode.jpg"
+        response = {
+            "return_code": "SUCCESS",
+            "return_msg": "OK",
+            "appid": "wx_dummy_appid",
+            "mch_id": "dummy_mch_id",
+            "nonce_str": "dummy_nonce_str",
+            "sign": "dummy_sign",
+            "result_code": "SUCCESS",
+            "prepay_id": "dummy_prepay_id",
+            "trade_type": "NATIVE",
+            "code_url": qr_code_url
+        }
+    else:
+        qr_code_url = "/upimg/pay_qrcode.jpg"
+        response = {
+            "return_code": "SUCCESS",
+            "return_msg": "OK",
+            "appid": "wx_dummy_appid",
+            "mch_id": "dummy_mch_id",
+            "nonce_str": "dummy_nonce_str",
+            "sign": "dummy_sign",
+            "result_code": "SUCCESS",
+            "prepay_id": "dummy_prepay_id",
+            "trade_type": "NATIVE",
+            "code_url": qr_code_url
+        }
+
+    return response
+
 
