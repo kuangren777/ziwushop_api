@@ -3,9 +3,9 @@
 # @Author  : KuangRen777
 # @File    : orders.py
 # @Tags    :
-from fastapi import APIRouter, Request, HTTPException, Depends, status, UploadFile, File, Path, Query
+from fastapi import APIRouter, Request, HTTPException, Depends, status, UploadFile, File, Path, Query, Body
 from models import Goods, Category, Comments, Users, OrderDetails, Orders, Cart, Address
-from tortoise.functions import Count
+from tortoise.functions import Count, Sum
 from tortoise.query_utils import Prefetch
 import json
 from pydantic import BaseModel, Field, HttpUrl, conint
@@ -609,3 +609,180 @@ async def get_order_express(
             }
         ]
     }
+
+
+@api_orders.patch("/{order_id}/confirm")
+async def confirm_order_receipt(
+    order_id: int = Path(..., description="The ID of the order to confirm receipt for"),
+    token: str = Depends(oauth2_scheme)
+):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Ensure the user exists
+    user = await Users.get_or_none(email=user_email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    else:
+        user_id = user.id
+
+    # Retrieve the order from the database
+    order = await Orders.get_or_none(id=order_id)
+    order_user = await order.user
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Ensure the order belongs to the user making the request
+    if order_user.id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to confirm receipt for this order")
+
+    # Check if the order is in the shipped state (status=3)
+    if order.status != 3:
+        raise HTTPException(status_code=400, detail="订单状态异常")
+
+    # Update the order status to 'received' (assuming status=4 for received)
+    order.status = 4
+    await order.save()
+
+    # Respond with no content on successful update
+    return {"message": "Order confirmed successfully", "status": 204}
+
+
+@api_orders.post("/{order_id}/comment")
+async def comment_on_product(
+    order_id: int = Path(..., description="The ID of the order"),
+    goods_id: int = Body(..., embed=True),
+    content: str = Body(..., embed=True),
+    rate: int = Body(1, embed=True),
+    star: int = Body(5, embed=True),
+    token: str = Depends(oauth2_scheme)
+):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Ensure the user exists
+    user = await Users.get_or_none(email=user_email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    else:
+        user_id = user.id
+
+    # Retrieve the order
+    order = await Orders.get_or_none(id=order_id)
+    order_user = await order.user
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Ensure the order belongs to the user making the request
+    if order_user.id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to comment on this order")
+
+    # Ensure the order is in the confirmed receipt state
+    if order.status != 4:
+        raise HTTPException(status_code=400, detail="订单状态异常")
+
+    # Check if the goods_id is part of this order
+    order_detail = await OrderDetails.get_or_none(order_id=order_id, goods_id=goods_id)
+    if not order_detail:
+        raise HTTPException(status_code=400, detail="此订单不包含该商品")
+
+    # Check if the product has already been commented on
+    existing_comment = await Comments.get_or_none(order_id=order_id, goods_id=goods_id)
+    if existing_comment:
+        raise HTTPException(status_code=400, detail="此商品已经评论过了")
+
+    # Create the comment
+    comment = await Comments.create(
+        user_id=user.id,
+        order_id=order_id,
+        goods_id=goods_id,
+        content=content,
+        rate=rate,
+        star=star
+    )
+
+    return {"message": "Comment added successfully", "comment_id": comment.id}, 201
+
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+
+router = APIRouter()
+
+
+@api_orders.patch("/{order_id}/paytest")
+async def simulate_payment(
+        order_id: int = Path(..., description="The ID of the order to simulate payment for"),
+        payment_type: str = Query(None, description="The payment platform to use", alias='type'),
+        token: str = Depends(oauth2_scheme)
+):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Ensure the user exists
+    user = await Users.get_or_none(email=user_email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    else:
+        user_id = user.id
+
+    # Retrieve the order
+    order = await Orders.get_or_none(id=order_id)
+    order_user = await order.user
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Ensure the order belongs to the user making the request
+    if order_user.id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to perform payment on this order")
+
+    # Check if the order is in the 'created' state
+    if order.status != 1:
+        raise HTTPException(status_code=400, detail="订单状态异常, 请重新下单")
+
+    order_detail = await OrderDetails.filter(order_id=order_id).first()
+    if not order_detail:
+        raise HTTPException(status_code=404, detail="No items found in the order")
+
+    good = await order_detail.goods.first()
+
+    # Calculate the total quantity of all items in the order
+    total_quantity = await OrderDetails.filter(order_id=order_id).annotate(total=Sum('num')).values('total')
+
+    # Ensure there's a result for total quantity and extract it
+    total_quantity = total_quantity[0]['total'] if total_quantity else 0
+
+    # Simulate payment processing
+    if payment_type == "aliyun":
+        payment_details = {
+            "out_trade_no": f"{order_id}_{get_current_time_str()}",
+            "total_amount": order.amount,
+            "subject": f"{good.title} 等 {total_quantity} 件商品"
+        }
+    elif payment_type == "wechat":
+        payment_details = {
+            "out_trade_no": f"{order_id}_{get_current_time_str()}",
+            "total_fee": order.amount,
+            "body": f"{good.title} 等 {total_quantity} 件商品"
+        }
+    else:
+        payment_details = {
+            "out_trade_no": f"{order_id}_{get_current_time_str()}",
+            "total_fee": order.amount,
+            "body": f"{good.title} 等 {total_quantity} 件商品"
+        }
+
+    # Update the order status to 'paid'
+    order.status = 2
+    await order.save()
+
+    return payment_details
+

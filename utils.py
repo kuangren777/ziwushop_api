@@ -54,6 +54,10 @@ if USE_OSS:
     bucket = oss2.Bucket(auth, ENDPOINT, BUCKET_NAME)
 
 
+def get_current_time_str():
+    return datetime.now().strftime("%Y%m%d%H%M%S%f")
+
+
 def delivery_query(com, num, phone, ship_from, ship_to):
     result = KuaiDi100().track(com, num, phone, ship_from, ship_to)
     if 'result' in json.loads(result):
