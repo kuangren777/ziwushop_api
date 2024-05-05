@@ -31,13 +31,22 @@ import uvicorn
 # 创建一个 FastAPI 对象
 app = FastAPI()
 
+# app.add_middleware(
+#     CORSMiddleware,
+#     # allow_origins=origins,  # *：代表所有客户端
+#     allow_origins=["*"],  # *：代表所有客户端
+#     allow_credentials=True,
+#     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+#     allow_headers=["*"],
+# )
+
+# 配置 CORS
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=origins,  # *：代表所有客户端
-    allow_origins=["*"],  # *：代表所有客户端
+    allow_origins=["*"],  # 允许所有域名访问，生产环境中应指定具体域名
     allow_credentials=True,
-    allow_methods=["GET"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # 允许所有方法
+    allow_headers=["*"],  # 允许所有头部
 )
 
 # 注册数据库

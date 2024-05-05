@@ -113,6 +113,13 @@ async def login(user_credentials: LoginModel):
     }
 
 
+@api_auth.options("/login")
+async def login_option():
+    return {
+        "GET": "This endpoint supports GET requests", "POST": "This endpoint supports POST requests"
+    }
+
+
 @api_auth.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(request: Request, token: str = Depends(oauth2_scheme)):
     print(f"Authorization header: {request.headers.get('Authorization')}")

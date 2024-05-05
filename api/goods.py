@@ -70,7 +70,8 @@ async def goods(request: Request):
     # Extract query parameters
     page = int(request.query_params.get('page', 1)) - 1
     title = request.query_params.get('title', None)
-    category_id = int(request.query_params.get('category_id', None))
+    category_id = request.query_params.get('category_id', None)
+    print(category_id)
     sales = int(request.query_params.get('sales', 0))
     recommend = int(request.query_params.get('recommend', 0))
     price = int(request.query_params.get('price', 0))
@@ -110,7 +111,7 @@ async def goods(request: Request):
     goods_list = await query.offset(page * 10).limit(10).all()
     goods_list = [GoodsTemp(g.id, g.title, g.price, g.cover, g.category_id, g.sales, transfer_time(str(g.updated_at)),
                             g.comments_count, 0,
-                            f'https://127.0.0.1:8888/upimg/goods_cover/{g.cover}.png') for g in goods_list]
+                            f'http://127.0.0.1:8888/upimg/goods_cover/{g.cover}') for g in goods_list]
 
     # Prepare the response
     # total_items = await query.count()

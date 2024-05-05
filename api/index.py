@@ -121,7 +121,7 @@ async def index(request: Request):
         goods_list = await goods_query
 
         goods = [GoodsTemp(g.id, g.title, g.price, g.stock, g.sales, f'upimg/goods_cover/{g.cover}.png',
-                           g.description, 0, f'https://127.0.0.1/upimg/goods_cover/{g.cover}.png') for g in goods_list]
+                           g.description, 0, f'http://127.0.0.1:8888/upimg/goods_cover/{g.cover}') for g in goods_list]
 
         goods_resp = {
             "current_page": page + 1,
@@ -138,7 +138,7 @@ async def index(request: Request):
     slides_query = await Slides.filter(status=1).order_by('seq').all()
     slides = [SlidesTemp(s.id, s.title, s.url, f'upimg/slides_img/{s.img}.png', s.status, s.seq,
                          transfer_time(f"{s.created_at}"), transfer_time(f"{s.updated_at}"),
-                         f'https://127.0.0.1/upimg/slides_img/{s.img}.png') for s in
+                         f'http://127.0.0.1/upimg/slides_img/{s.img}') for s in
               slides_query]
 
     links = [

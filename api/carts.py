@@ -181,7 +181,7 @@ async def get_cart_items(request: Request, token: str = Depends(oauth2_scheme)):
                         stock=item.goods.stock,
                         sales=item.goods.sales,
                         cover=item.goods.cover,
-                        cover_url=f'http://127.0.0.1:8000/upimg/goods_cover/{item.goods.cover}',
+                        cover_url=f'http://127.0.0.1:8888/upimg/goods_cover/{item.goods.cover}',
                         pics=item.goods.pics,
                         pics_url=[],  # TODO: 这里还没弄
                         details=item.goods.details,
@@ -292,4 +292,9 @@ async def update_cart_checked_state(request: CartCheckedUpdateRequest,
         item.is_checked = 1 if item.id in checked_ids else 0
         await item.save()
 
+    return {}
+
+
+@api_cart.options("/checked", status_code=status.HTTP_204_NO_CONTENT)
+async def update_cart_checked_state_1():
     return {}
