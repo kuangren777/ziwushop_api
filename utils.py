@@ -123,14 +123,14 @@ def transfer_time(input_time_str):
     input_time = datetime.fromisoformat(input_time_str)
 
     # 将 datetime 对象格式化为所需格式的时间字符串
-    output_time_str = input_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    output_time_str = input_time.strftime("%Y-%m-%d %H:%M:%S")
 
     return output_time_str
 
 
 def transfer_time_datetime(input_time_datetime):
     # 将 datetime 对象格式化为所需格式的时间字符串
-    output_time_str = input_time_datetime.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    output_time_str = input_time_datetime.strftime("%Y-%m-%d %H:%M:%S")
 
     return output_time_str
 

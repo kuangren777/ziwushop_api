@@ -96,7 +96,7 @@ class CartItems:
 
 
 class CartQuantityUpdateRequest(BaseModel):
-    num: str
+    num: int
 
 
 class CartCheckedUpdateRequest(BaseModel):
@@ -154,7 +154,7 @@ async def get_cart_items(request: Request, token: str = Depends(oauth2_scheme)):
 
     cart_items_query = Cart.filter(user_id=user_id)
 
-    print(include)
+    # print(include)
 
     if include == "goods":
         cart_items_query = cart_items_query.prefetch_related("goods")
@@ -233,7 +233,7 @@ async def update_cart_quantity(cart_id: int,
         raise HTTPException(status_code=404, detail="Cart item not found or does not belong to user")
 
     # Update the quantity
-    cart_item.num += eval(request.num)
+    cart_item.num = request.num
     await cart_item.save()
 
     return {}

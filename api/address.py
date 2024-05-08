@@ -22,11 +22,11 @@ api_address = APIRouter()
 
 class AddressCreate(BaseModel):
     name: str = Field(..., example="John Doe")
-    address: str = Field(..., example="123 Main St")
     phone: str = Field(..., example="1234567890")
     province: str = Field(..., example="California")
     city: str = Field(..., example="Los Angeles")
     county: str = Field(..., example="Los Angeles County")
+    address: str = Field(..., example="123 Main St")
     is_default: int = Field(0, example=1)  # Default to 0 if not provided
 
 
@@ -73,35 +73,38 @@ class AddressUpdate(BaseModel):
 
 
 @api_address.post("", status_code=status.HTTP_201_CREATED)
-async def add_address(address_data: AddressCreate, token: str = Depends(oauth2_scheme)):
+async def add_address(
+    name: str, phone: str, province: str, city: str, county: str,
+    address: str, is_default: int, token: str = Depends(oauth2_scheme)
+):
+    # 试图解码 JWT 以验证 token
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_email = payload.get("sub")
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    # Ensure the user exists
+    # 确保用户存在
     user = await Users.get_or_none(email=user_email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    else:
-        user_id = user.id
 
-    # If is_default is set to 1, reset all other addresses' default status
-    if address_data.is_default:
+    # 如果 is_default 被设置为 1, 重置所有其他地址的默认状态
+    if is_default == 1:
         await Address.filter(user_id=user.id, is_default=1).update(is_default=0)
 
-    # Create the new address
+    # 创建新地址
     address = await Address.create(
         user_id=user.id,
-        name=address_data.name,
-        address=address_data.address,
-        phone=address_data.phone,
-        province=address_data.province,
-        city=address_data.city,
-        county=address_data.county,
-        is_default=address_data.is_default
+        name=name,
+        address=address,
+        phone=phone,
+        province=province,
+        city=city,
+        county=county,
+        is_default=is_default
     )
+
     return {"message": "Address created successfully", "address_id": address.id}
 
 
@@ -155,7 +158,13 @@ async def get_address_details(address_id: int, token: str = Depends(oauth2_schem
 @api_address.put("/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def update_address(
         address_id: int,
-        address_data: AddressUpdate,
+        name: str,
+        phone: str,
+        province: str,
+        city: str,
+        county: str,
+        address: str,
+        is_default: bool,
         token: str = Depends(oauth2_scheme)
 ):
     try:
@@ -168,28 +177,34 @@ async def update_address(
     user = await Users.get_or_none(email=user_email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    else:
-        user_id = user.id
 
     # Fetch the existing address to update
-    address = await Address.get_or_none(id=address_id)
-    if not address:
+    address_record = await Address.get_or_none(id=address_id)
+    if not address_record:
         raise HTTPException(status_code=404, detail="Address not found")
-    address_user = await address.user
+    address_user = await address_record.user
 
     if address_user.id != user.id:
         raise HTTPException(status_code=403, detail="Permission denied to update this address")
 
-    if address_data.name == "" or address_data.address == "" or address_data.phone == "" or address_data.province == "" or address_data.city == "" or address_data.county == "":
+    if not all([name, phone, province, city, county, address]):
         raise HTTPException(status_code=422, detail="Address data cannot be empty")
 
     # If setting this address as default, reset defaults for other addresses
-    if address_data.is_default:
+    if is_default:
         await Address.filter(user_id=user.id, is_default=1).update(is_default=0)
 
     # Update address
-    update_data = address_data.dict(exclude_unset=True)
-    await address.update_from_dict(update_data).save()
+    update_data = {
+        "name": name,
+        "phone": phone,
+        "province": province,
+        "city": city,
+        "county": county,
+        "address": address,
+        "is_default": is_default
+    }
+    await address_record.update_from_dict(update_data).save()
 
     return {"message": "Address updated successfully"}
 

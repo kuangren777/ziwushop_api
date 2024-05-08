@@ -225,7 +225,7 @@ async def get_email_code(email_data: EmailRequestModel, token: str = Depends(oau
     # 保存验证码
     save_verification_code(user_email, verification_code)
 
-    send_verification_email(user_email, verification_code)
+    send_verification_email(email_data.email, verification_code)
 
     return {}
 

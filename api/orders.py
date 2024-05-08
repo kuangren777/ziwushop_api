@@ -25,7 +25,7 @@ class GoodsTemp:
         self.id = id
         self.cover = cover
         self.title = title
-        self.cover_url = f'http://127.0.0.1/{self.cover}'
+        self.cover_url = f'http://127.0.0.1:8888/upimg/goods_cover/{self.cover}'
 
     def dict(self):
         return {
@@ -33,6 +33,24 @@ class GoodsTemp:
             "cover": self.cover,
             "title": self.title,
             "cover_url": self.cover_url
+        }
+
+
+class GoodsTempWithPrice:
+    def __init__(self, id, cover, title, price):
+        self.id = id
+        self.cover = cover
+        self.title = title
+        self.cover_url = f'http://127.0.0.1:8888/upimg/goods_cover/{self.cover}'
+        self.price = price
+
+    def dict(self):
+        return {
+            "id": self.id,
+            "cover": self.cover,
+            "title": self.title,
+            "cover_url": self.cover_url,
+            "price": self.price
         }
 
 
@@ -92,6 +110,36 @@ class AddressTemp:
     def dict(self):
         return {
             "id": self.id,
+            "name": self.name,
+            "province": self.province,
+            "city": self.city,
+            "county": self.county,
+            "address": self.address,
+            "phone": self.phone,
+            "is_default": self.is_default,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+
+class AddressByOrderPreviewTemp:
+    def __init__(self, id, user_id, name, province, city, county, address, phone, is_default, created_at, updated_at):
+        self.id = id
+        self.user_id = user_id
+        self.name = name
+        self.province = province
+        self.city = city
+        self.county = county
+        self.address = address
+        self.phone = phone
+        self.is_default = is_default
+        self.created_at = created_at
+        self.updated_at = updated_at
+
+    def dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
             "name": self.name,
             "province": self.province,
             "city": self.city,
@@ -206,10 +254,12 @@ async def order_preview(token: str = Depends(oauth2_scheme)):
 
     # Fetch checked cart items and related goods
     cart_items = await Cart.filter(user_id=user_id, is_checked=1).prefetch_related('goods')
+    address_user = await address.user
 
     return {
-        "address": [AddressTemp(
+        "address": [AddressByOrderPreviewTemp(
             address.id,
+            address_user.id,
             address.name,
             address.province,
             address.city,
@@ -228,18 +278,24 @@ async def order_preview(token: str = Depends(oauth2_scheme)):
             cart_item.is_checked,
             cart_item.created_at,
             cart_item.updated_at,
-            GoodsTemp(
+            GoodsTempWithPrice(
                 cart_item.goods.id,
                 cart_item.goods.cover,
                 cart_item.goods.title,
+                cart_item.goods.price
             )
         ) for cart_item in cart_items]
 
     }
 
 
-@api_orders.post("/", status_code=status.HTTP_201_CREATED)
-async def submit_order(order_request: OrderCreateRequest, token: str = Depends(oauth2_scheme)):
+async def remove_cart_items(cart_items):
+    for item in cart_items:
+        await item.delete()  # Assuming a delete method is available
+
+
+@api_orders.post("", status_code=status.HTTP_201_CREATED)
+async def submit_order(address_id: int, token: str = Depends(oauth2_scheme)):
     # Decode JWT token to authenticate and get user ID
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -256,7 +312,7 @@ async def submit_order(order_request: OrderCreateRequest, token: str = Depends(o
 
     async with in_transaction():
         # Check if the address exists and belongs to the user
-        address = await Address.get_or_none(id=order_request.address_id, user_id=user.id)
+        address = await Address.get_or_none(id=address_id, user_id=user.id)
         if not address:
             raise HTTPException(status_code=404, detail="Address not found or address is not yours.")
 
@@ -298,6 +354,9 @@ async def submit_order(order_request: OrderCreateRequest, token: str = Depends(o
             detail.order = order
             await detail.save()
 
+        # Remove cart items after order is successfully created
+        await remove_cart_items(cart_items)
+
         return OrdersTemp(
             order.id,
             order.order_no,
@@ -317,9 +376,9 @@ async def submit_order(order_request: OrderCreateRequest, token: str = Depends(o
 
 @api_orders.get("/{order_id}")
 async def get_order_details(
-    order_id: int,
-    include: Optional[str] = Query(None),
-    token: str = Depends(oauth2_scheme)
+        order_id: int,
+        include: Optional[str] = Query(None),
+        token: str = Depends(oauth2_scheme)
 ):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -418,12 +477,12 @@ async def get_order_details(
 
 @api_orders.get("")
 async def list_orders(
-    title: Optional[str] = Query(None),
-    include: Optional[str] = Query(None),
-    status: Optional[int] = Query(None),
-    token: str = Depends(oauth2_scheme),
-    page: int = Query(1, gt=0),
-    per_page: int = Query(10, gt=0)
+        title: Optional[str] = Query(None),
+        include: Optional[str] = Query(None),
+        status: Optional[int] = Query(None),
+        token: str = Depends(oauth2_scheme),
+        page: int = Query(1, gt=0),
+        per_page: int = Query(10, gt=0)
 ):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -441,7 +500,10 @@ async def list_orders(
     # Base query with optional filters
     query = Orders.filter(user_id=user.id).prefetch_related('order_details')
     if status is not None:
-        query = query.filter(status=status)
+        if status == 0:
+            query = query.filter(status__in=[1, 2, 3, 4, 5]).order_by('-created_at')
+        else:
+            query = query.filter(status=status).order_by('-created_at')
     if title is not None:
         query = query.filter(order_details__goods__title__icontains=title)
 
@@ -450,7 +512,6 @@ async def list_orders(
     orders = await query.offset((page - 1) * per_page).limit(per_page)
 
     includes = re.split(r'[,.]', include) if include else []
-
 
     results = []
     for order in orders:
@@ -548,8 +609,8 @@ async def list_orders(
 
 @api_orders.get("/{order_id}/express")
 async def get_order_express(
-    order_id: int = Path(..., description="The ID of the order"),
-    token: str = Depends(oauth2_scheme)
+        order_id: int = Path(..., description="The ID of the order"),
+        token: str = Depends(oauth2_scheme)
 ):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -613,8 +674,8 @@ async def get_order_express(
 
 @api_orders.patch("/{order_id}/confirm")
 async def confirm_order_receipt(
-    order_id: int = Path(..., description="The ID of the order to confirm receipt for"),
-    token: str = Depends(oauth2_scheme)
+        order_id: int = Path(..., description="The ID of the order to confirm receipt for"),
+        token: str = Depends(oauth2_scheme)
 ):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -653,12 +714,12 @@ async def confirm_order_receipt(
 
 @api_orders.post("/{order_id}/comment")
 async def comment_on_product(
-    order_id: int = Path(..., description="The ID of the order"),
-    goods_id: int = Body(..., embed=True),
-    content: str = Body(..., embed=True),
-    rate: int = Body(1, embed=True),
-    star: int = Body(5, embed=True),
-    token: str = Depends(oauth2_scheme)
+        order_id: int = Path(..., description="The ID of the order"),
+        goods_id: int = Body(..., embed=True),
+        content: str = Body(..., embed=True),
+        rate: int = Body(1, embed=True),
+        star: int = Body(5, embed=True),
+        token: str = Depends(oauth2_scheme)
 ):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -710,12 +771,14 @@ async def comment_on_product(
     return {"message": "Comment added successfully", "comment_id": comment.id}, 201
 
 
-@api_orders.patch("/{order_id}/paytest")
+# @api_orders.patch("/{order_id}/paytest")
+@api_orders.get("/{order_id}/pay")
 async def simulate_payment(
+        type: str,
         order_id: int = Path(..., description="The ID of the order to simulate payment for"),
-        payment_type: str = Query(None, description="The payment platform to use", alias='type'),
         token: str = Depends(oauth2_scheme)
 ):
+    payment_type = type
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_email = payload.get("sub")
@@ -783,11 +846,14 @@ async def simulate_payment(
 
 
 """这个功能没有测试，因为好像可以直接用模拟支付"""
-@api_orders.get("/{order_id}/pay")
+
+
+# @api_orders.get("/{order_id}/pay")
 async def get_payment_qr_code(
-    order_id: int = Path(..., description="The ID of the order to generate QR code for"),
-    payment_type: str = Query(..., regex="^(aliyun|wechat)$", description="The payment platform to use"),
-    token: str = Depends(oauth2_scheme)
+        type: str,
+        order_id: int = Path(..., description="The ID of the order to generate QR code for"),
+        # payment_type: str = Query(..., regex="^(aliyun|wechat)$", description="The payment platform to use"),
+        token: str = Depends(oauth2_scheme)
 ):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -814,13 +880,14 @@ async def get_payment_qr_code(
         raise HTTPException(status_code=400, detail="订单状态异常, 请重新下单")
 
     # Depending on the payment type, prepare the response
+    payment_type = type
     if payment_type == "aliyun":
-        qr_code_url = "/upimg/pay_qrcode.jpg"
+        qr_code_url = "http://127.0.0.1:8888/upimg/alipay.png"
         response = {
             "code": "10000",
             "msg": "Success",
             "out_trade_no": str(order_id),
-            "qr_code_url": qr_code_url
+            "qr_code_url": qr_code_url,
         }
     elif payment_type == "wechat":
         qr_code_url = "/upimg/pay_qrcode.jpg"
@@ -834,7 +901,8 @@ async def get_payment_qr_code(
             "result_code": "SUCCESS",
             "prepay_id": "dummy_prepay_id",
             "trade_type": "NATIVE",
-            "code_url": qr_code_url
+            "code_url": qr_code_url,
+            "qr_code_url": 'http://127.0.0.1:8888/upimg/alipay.png'
         }
     else:
         qr_code_url = "/upimg/pay_qrcode.jpg"
@@ -848,9 +916,36 @@ async def get_payment_qr_code(
             "result_code": "SUCCESS",
             "prepay_id": "dummy_prepay_id",
             "trade_type": "NATIVE",
-            "code_url": qr_code_url
+            "code_url": qr_code_url,
+            "qr_code_url": 'http://127.0.0.1:8888/upimg/alipay.png'
         }
 
     return response
 
+
+@api_orders.get("/{order_id}/status")
+async def get_order_status(
+        order_id: int = Path(..., description="The ID of the order to check status for"),
+        token: str = Depends(oauth2_scheme)
+):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Ensure the user exists
+    user = await Users.get_or_none(email=user_email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    else:
+        user_id = user.id
+
+    time.sleep(1)
+
+    order = await Orders.get_or_none(id=order_id)
+    order.status = 2
+    await order.save()
+
+    return '2'
 

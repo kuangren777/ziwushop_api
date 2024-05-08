@@ -78,7 +78,7 @@ class SlidesTemp:
         }
 
 
-@api_index.get('/')
+@api_index.get('')
 async def index(request: Request):
     json_data = request.query_params
     page = int(json_data.get('page', 1)) - 1  # API 通常从第1页开始计数，而程序内部从第0页开始
@@ -136,9 +136,9 @@ async def index(request: Request):
         }
 
     slides_query = await Slides.filter(status=1).order_by('seq').all()
-    slides = [SlidesTemp(s.id, s.title, s.url, f'upimg/slides_img/{s.img}.png', s.status, s.seq,
+    slides = [SlidesTemp(s.id, s.title, s.url, f'upimg/slides_img/{s.img}', s.status, s.seq,
                          transfer_time(f"{s.created_at}"), transfer_time(f"{s.updated_at}"),
-                         f'http://127.0.0.1/upimg/slides_img/{s.img}') for s in
+                         f'http://127.0.0.1:8888/upimg/slides_img/{s.img}') for s in
               slides_query]
 
     links = [

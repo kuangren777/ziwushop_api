@@ -71,7 +71,7 @@ async def goods(request: Request):
     page = int(request.query_params.get('page', 1)) - 1
     title = request.query_params.get('title', None)
     category_id = request.query_params.get('category_id', None)
-    print(category_id)
+    # print(category_id)
     sales = int(request.query_params.get('sales', 0))
     recommend = int(request.query_params.get('recommend', 0))
     price = int(request.query_params.get('price', 0))
@@ -172,11 +172,11 @@ async def get_good_details(good_id: int):
             "pics": goods.pics,
             "is_on": 1 if bool(goods.is_on) else 0,
             "is_recommend": 1 if bool(goods.is_recommend) else 0,
-            "details": goods.details,
+            "details": eval(goods.details),
             "created_at": transfer_time(str(goods.created_at.isoformat())) if goods.created_at else None,
             "updated_at": transfer_time(str(goods.updated_at.isoformat())) if goods.updated_at else None,
             "collects_count": 0,
-            "cover_url": goods.cover,
+            "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{goods.cover}',
             "pics_url": goods_pics,
             "is_collected": 0,
             "comments": [
@@ -197,7 +197,7 @@ async def get_good_details(good_id: int):
                         "id": comment.user.id,
                         "name": comment.user.name,
                         "avatar": comment.user.avatar,
-                        "avatar_url": f'https://127.0.0.1:8888/upimg/avatars/{comment.user.avatar}.png'
+                        "avatar_url": f'http://127.0.0.1:8888/upimg/avatars/{comment.user.avatar}'
                         if comment.user.avatar else None,
                     }
                 } for comment in goods.reviews
@@ -208,7 +208,7 @@ async def get_good_details(good_id: int):
                 "id": lg.id,
                 "title": lg.title,
                 "price": lg.price,
-                "cover_url": lg.cover,
+                "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{lg.cover}',
                 "sales": lg.sales
             } for lg in like_goods
         ]
