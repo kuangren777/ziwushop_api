@@ -24,6 +24,8 @@ from api.carts import api_cart
 from api.orders import api_orders
 from api.city import api_city
 from api.address import api_address
+from api.admin.index import admin_index
+from api.admin.users import admin_users
 
 # 启动网页服务
 import uvicorn
@@ -71,6 +73,8 @@ app.include_router(api_cart, prefix='/api/carts', tags=['购物车接口'])
 app.include_router(api_orders, prefix='/api/orders', tags=['订单接口'])
 app.include_router(api_city, prefix='/api/city', tags=['省市查询接口'])
 app.include_router(api_address, prefix='/api/address', tags=['地址接口'])
+app.include_router(admin_index, prefix='/api/admin/index', tags=['地址接口'])
+app.include_router(admin_users, prefix='/api/admin/users', tags=['地址接口'])
 
 
 if __name__ == '__main__':

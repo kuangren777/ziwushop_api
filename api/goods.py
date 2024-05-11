@@ -10,10 +10,43 @@ from tortoise.query_utils import Prefetch
 import json
 from pydantic import BaseModel
 
+import jieba
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+import pandas as pd
+import numpy as np
+from typing import List, Optional
+import models
+import asyncio
+
 
 from utils import *
 
 api_goods = APIRouter()
+
+
+# 自定义 jieba 分词器
+def jieba_tokenizer(text):
+    return jieba.lcut(text)
+
+# 初始化 TF-IDF 和 StandardScaler
+text_features = 'description'
+text_transformer = Pipeline(steps=[
+    ('tfidf', TfidfVectorizer(tokenizer=jieba_tokenizer))
+])
+
+numeric_features = ['price']
+numeric_transformer = StandardScaler()
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('text', text_transformer, text_features),
+        ('num', numeric_transformer, numeric_features)
+    ]
+)
 
 
 class GoodsTemp:
@@ -130,7 +163,7 @@ async def goods(request: Request):
 
 
 @api_goods.get("/{good_id}")
-async def get_good_details(good_id: int):
+async def get_good_details(good_id: int, token: Optional[str] = Depends(oauth2_scheme)):
     """
     异步获取指定ID商品及其关联数据。
 
@@ -140,79 +173,219 @@ async def get_good_details(good_id: int):
     返回值:
     - goods: 包含指定商品及其预加载的相关数据的对象。例如，商品评论、用户信息和商品类别。
     """
-    goods = await Goods.filter(id=good_id).prefetch_related(
-        Prefetch("reviews", queryset=Comments.all().prefetch_related(Prefetch("user", queryset=Users.all()), "order")),
-        # 预加载商品的所有评论及其用户和订单信息
-        Prefetch("user", queryset=Users.all()),  # 预加载商品的发布用户信息
-        Prefetch("category", queryset=Category.all())  # 预加载商品所属的类别信息
-    ).first()  # 获取查询结果中的第一个商品
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
 
-    if not goods:
-        raise HTTPException(status_code=404, detail="Goods not found")
+        # Ensure the user exists
+        user = await Users.get_or_none(email=user_email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        else:
+            user_id = user.id
 
-    # Assuming 'like_goods' are similar items in the same category excluding the current item
-    like_goods = await Goods.filter(category=goods.category).exclude(id=good_id).limit(5).all()
+        goods = await Goods.filter(id=good_id).prefetch_related(
+            Prefetch("reviews",
+                     queryset=Comments.all().prefetch_related(Prefetch("user", queryset=Users.all()), "order")),
+            # 预加载商品的所有评论及其用户和订单信息
+            Prefetch("user", queryset=Users.all()),  # 预加载商品的发布用户信息
+            Prefetch("category", queryset=Category.all())  # 预加载商品所属的类别信息
+        ).first()  # 获取查询结果中的第一个商品
 
-    # Check if goods.pics is already a dict or list; if not, parse it
-    goods_pics = goods.pics if isinstance(goods.pics, (dict, list)) else json.loads(goods.pics) if goods.pics else []
+        # 获取用户购买历史中的商品ID
+        user_orders = await Orders.filter(user_id=user_id).prefetch_related('order_details__goods')
+        user_goods_ids = {detail.goods.id for order in user_orders for detail in order.order_details}
 
-    return {
-        "goods": {
-            "id": goods.id,
-            "user_id": goods.user.id,
-            # "user_name": goods.user.name,
-            "category_id": goods.category.id,
-            # "category_name": goods.category.name,
-            "title": goods.title,
-            "description": goods.description,
-            "price": goods.price,
-            "stock": goods.stock,
-            "sales": goods.sales,
-            "cover": goods.cover,
-            "pics": goods.pics,
-            "is_on": 1 if bool(goods.is_on) else 0,
-            "is_recommend": 1 if bool(goods.is_recommend) else 0,
-            "details": eval(goods.details),
-            "created_at": transfer_time(str(goods.created_at.isoformat())) if goods.created_at else None,
-            "updated_at": transfer_time(str(goods.updated_at.isoformat())) if goods.updated_at else None,
-            "collects_count": 0,
-            "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{goods.cover}',
-            "pics_url": goods_pics,
-            "is_collected": 0,
-            "comments": [
+        if not goods:
+            raise HTTPException(status_code=404, detail="Goods not found")
+
+        # 所有商品数据，用于生成推荐
+        all_goods = await Goods.all()
+        goods_data = [{
+            'id': g.id,
+            'title': g.title,
+            'description': g.description,
+            'price': g.price
+        } for g in all_goods]
+
+        print(goods_data)
+
+        df = pd.DataFrame(goods_data)
+        X_transformed = preprocessor.fit_transform(df)
+        cosine_sim = cosine_similarity(X_transformed, X_transformed)
+
+        # 从订单中找到用户购买过的商品
+        orders = await models.Orders.filter(user_id=user_id).all()
+        order_ids = [order.id for order in orders]
+        order_details = await models.OrderDetails.filter(order_id__in=order_ids).all()
+        purchased_goods_ids = [detail.goods_id for detail in order_details]
+
+        # 获取这些商品
+        purchased_goods = await models.Goods.filter(id__in=purchased_goods_ids).all()
+
+        user_goods_ids = [g.id for g in purchased_goods]
+
+        # Convert goods IDs to DataFrame indices
+        goods_id_to_index = {g['id']: idx for idx, g in enumerate(goods_data)}
+        # print(goods_id_to_index)
+        valid_indices = [goods_id_to_index[ugid] for ugid in user_goods_ids if ugid in goods_id_to_index]
+
+        # Assuming 'like_goods' are similar items in the same category excluding the current item
+        like_goods = await Goods.filter(category=goods.category).exclude(id=good_id).limit(5).all()
+
+        # Check if goods.pics is already a dict or list; if not, parse it
+        goods_pics = goods.pics if isinstance(goods.pics, (dict, list)) else json.loads(
+            goods.pics) if goods.pics else []
+
+        # Check if indices are valid
+        if not valid_indices:
+            return {
+                "goods": {
+                    "id": goods.id,
+                    "user_id": goods.user.id,
+                    # "user_name": goods.user.name,
+                    "category_id": goods.category.id,
+                    # "category_name": goods.category.name,
+                    "title": goods.title,
+                    "description": goods.description,
+                    "price": goods.price,
+                    "stock": goods.stock,
+                    "sales": goods.sales,
+                    "cover": goods.cover,
+                    "pics": goods.pics,
+                    "is_on": 1 if bool(goods.is_on) else 0,
+                    "is_recommend": 1 if bool(goods.is_recommend) else 0,
+                    "details": goods.details,
+                    "created_at": transfer_time(str(goods.created_at.isoformat())) if goods.created_at else None,
+                    "updated_at": transfer_time(str(goods.updated_at.isoformat())) if goods.updated_at else None,
+                    "collects_count": 0,
+                    "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{goods.cover}',
+                    "pics_url": goods_pics,
+                    "is_collected": 0,
+                    "comments": [
+                        {
+                            "id": comment.id,
+                            "user_id": comment.user.id,
+                            # "user_name": comment.user.name,
+                            "order_id": comment.order.id,
+                            "goods_id": goods.id,
+                            "rate": comment.rate,
+                            "star": comment.star,
+                            "content": comment.content,
+                            "reply": comment.reply,
+                            "pics": json.loads(comment.pics) if comment.pics else [],
+                            "created_at": transfer_time(
+                                str(comment.created_at.isoformat())) if comment.created_at else None,
+                            "updated_at": transfer_time(
+                                str(comment.updated_at.isoformat())) if comment.updated_at else None,
+                            "user": {
+                                "id": comment.user.id,
+                                "name": comment.user.name,
+                                "avatar": comment.user.avatar,
+                                "avatar_url": f'http://127.0.0.1:8888/upimg/avatars/{comment.user.avatar}'
+                                if comment.user.avatar else None,
+                            }
+                        } for comment in goods.reviews
+                    ]
+                },
+                "like_goods": [
+                    {
+                        "id": lg.id,
+                        "title": lg.title,
+                        "price": lg.price,
+                        "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{lg.cover}',
+                        "sales": lg.sales
+                    } for lg in like_goods
+                ],
+                "recommend_goods": []
+            }
+
+        top_n = 4
+
+        # Calculate average similarity scores for user's goods
+        sim_scores = cosine_sim[valid_indices].mean(axis=0)
+        top_indices = np.argsort(sim_scores)[::-1][:top_n]
+
+        # Fetch recommended goods by ID
+        recommended_ids = [df.iloc[i]['id'] for i in top_indices]
+        # 获取推荐商品（排除已购买的）
+        recommended_ids = [df.iloc[i]['id'] for i in top_indices if df.iloc[i]['id'] not in purchased_goods_ids][:top_n]
+        recommended_goods = await Goods.filter(id__in=recommended_ids).all()
+        print(recommended_goods)
+
+        return {
+            "goods": {
+                "id": goods.id,
+                "user_id": goods.user.id,
+                # "user_name": goods.user.name,
+                "category_id": goods.category.id,
+                # "category_name": goods.category.name,
+                "title": goods.title,
+                "description": goods.description,
+                "price": goods.price,
+                "stock": goods.stock,
+                "sales": goods.sales,
+                "cover": goods.cover,
+                "pics": goods.pics,
+                "is_on": 1 if bool(goods.is_on) else 0,
+                "is_recommend": 1 if bool(goods.is_recommend) else 0,
+                "details": goods.details,
+                "created_at": transfer_time(str(goods.created_at.isoformat())) if goods.created_at else None,
+                "updated_at": transfer_time(str(goods.updated_at.isoformat())) if goods.updated_at else None,
+                "collects_count": 0,
+                "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{goods.cover}',
+                "pics_url": goods_pics,
+                "is_collected": 0,
+                "comments": [
+                    {
+                        "id": comment.id,
+                        "user_id": comment.user.id,
+                        # "user_name": comment.user.name,
+                        "order_id": comment.order.id,
+                        "goods_id": goods.id,
+                        "rate": comment.rate,
+                        "star": comment.star,
+                        "content": comment.content,
+                        "reply": comment.reply,
+                        "pics": json.loads(comment.pics) if comment.pics else [],
+                        "created_at": transfer_time(
+                            str(comment.created_at.isoformat())) if comment.created_at else None,
+                        "updated_at": transfer_time(
+                            str(comment.updated_at.isoformat())) if comment.updated_at else None,
+                        "user": {
+                            "id": comment.user.id,
+                            "name": comment.user.name,
+                            "avatar": comment.user.avatar,
+                            "avatar_url": f'http://127.0.0.1:8888/upimg/avatars/{comment.user.avatar}'
+                            if comment.user.avatar else None,
+                        }
+                    } for comment in goods.reviews
+                ]
+            },
+            "like_goods": [
                 {
-                    "id": comment.id,
-                    "user_id": comment.user.id,
-                    # "user_name": comment.user.name,
-                    "order_id": comment.order.id,
-                    "goods_id": goods.id,
-                    "rate": comment.rate,
-                    "star": comment.star,
-                    "content": comment.content,
-                    "reply": comment.reply,
-                    "pics": json.loads(comment.pics) if comment.pics else [],
-                    "created_at": transfer_time(str(comment.created_at.isoformat())) if comment.created_at else None,
-                    "updated_at": transfer_time(str(comment.updated_at.isoformat())) if comment.updated_at else None,
-                    "user": {
-                        "id": comment.user.id,
-                        "name": comment.user.name,
-                        "avatar": comment.user.avatar,
-                        "avatar_url": f'http://127.0.0.1:8888/upimg/avatars/{comment.user.avatar}'
-                        if comment.user.avatar else None,
-                    }
-                } for comment in goods.reviews
+                    "id": lg.id,
+                    "title": lg.title,
+                    "price": lg.price,
+                    "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{lg.cover}',
+                    "sales": lg.sales
+                } for lg in like_goods
+            ],
+            "recommend_goods": [
+                {
+                    "id": rg.id,
+                    "title": rg.title,
+                    "price": rg.price,
+                    "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{rg.cover}',
+                    "sales": rg.sales
+                } for rg in recommended_goods
             ]
-        },
-        "like_goods": [
-            {
-                "id": lg.id,
-                "title": lg.title,
-                "price": lg.price,
-                "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{lg.cover}',
-                "sales": lg.sales
-            } for lg in like_goods
-        ]
-    }
+        }
+
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
 
 
 @api_goods.post("/comment", status_code=status.HTTP_201_CREATED)
