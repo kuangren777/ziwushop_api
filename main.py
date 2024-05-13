@@ -27,6 +27,7 @@ from api.address import api_address
 from api.admin.index import admin_index
 from api.admin.users import admin_users
 from api.admin.user import admin_user
+from api.admin.category import admin_category
 
 # 启动网页服务
 import uvicorn
@@ -77,6 +78,7 @@ app.include_router(api_address, prefix='/api/address', tags=['地址接口'])
 app.include_router(admin_index, prefix='/api/admin/index', tags=['地址接口'])
 app.include_router(admin_users, prefix='/api/admin/users', tags=['地址接口'])
 app.include_router(admin_user, prefix='/api/admin/user', tags=['地址接口'])
+app.include_router(admin_category, prefix='/api/admin/category', tags=['地址接口'])
 
 
 if __name__ == '__main__':
