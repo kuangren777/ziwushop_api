@@ -118,6 +118,8 @@ async def get_orders_list(
     if prefetch_relations:
         query = query.prefetch_related(*prefetch_relations)
 
+    query = query.order_by("-updated_at")
+
     # 分页设置
     per_page = 10
     total_count = await query.count()
@@ -142,11 +144,11 @@ async def get_orders_list(
             address_id=order_address.id if order.address else None,
             express_type=order.express_type,
             express_no=order.express_no,
-            pay_time=order.pay_time.isoformat() if order.pay_time else None,
+            pay_time=order.pay_time.strftime('%Y-%m-%d %H:%M:%S') if order.pay_time else None,
             pay_type=order.pay_type,
             trade_no=order.trade_no,
-            created_at=order.created_at.isoformat(),
-            updated_at=order.updated_at.isoformat(),
+            created_at=order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            updated_at=order.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
             user=UserBase(**order.user.__dict__) if "user" in include.split(',') and order.user else None,
             goods=[GoodsBase(**detail.goods.__dict__) for detail in order_details] if "orderDetails" in include.split(
                 ',') else [],
@@ -219,11 +221,11 @@ async def get_order_details(
         address_id=order_address_id if order.address else None,
         express_type=order.express_type,
         express_no=order.express_no,
-        pay_time=order.pay_time.isoformat() if order.pay_time else None,
+        pay_time=order.pay_time.strftime('%Y-%m-%d %H:%M:%S') if order.pay_time else None,
         pay_type=order.pay_type,
         trade_no=order.trade_no,
-        created_at=order.created_at.isoformat(),
-        updated_at=order.updated_at.isoformat(),
+        created_at=order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        updated_at=order.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
         user=UserBase(**order.user.__dict__) if "user" in include.split(',') and order.user else None,
         goods=[GoodsBase(**detail.goods.__dict__) for detail in
                order_details] if "goods" in include.split(',') else [],
@@ -270,3 +272,41 @@ async def post_order(
     await order.save()
 
     return {}
+
+
+class OrderModel(BaseModel):
+    id: int
+    order_no: str
+    user_id: int
+    amount: float
+    status: int
+    address_id: int
+    express_type: str
+    express_no: str
+    pay_time: str
+    pay_type: str
+    trade_no: str
+    created_at: str
+    updated_at: str
+
+
+@admin_orders.get("/fetch_all", response_model=List[OrderModel])
+async def fetch_all_orders(token: str = Depends(oauth2_scheme)):
+    # 解码JWT token来验证并获取用户信息
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # 确保用户存在
+    user = await Users.get_or_none(email=user_email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        # Fetch all orders without applying pagination
+        orders = await Orders.all()
+        return orders
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

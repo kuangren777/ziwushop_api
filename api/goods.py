@@ -256,8 +256,8 @@ async def get_good_details(good_id: int, token: Optional[str] = Depends(oauth2_s
                     "is_on": 1 if bool(goods.is_on) else 0,
                     "is_recommend": 1 if bool(goods.is_recommend) else 0,
                     "details": goods.details,
-                    "created_at": transfer_time(str(goods.created_at.isoformat())) if goods.created_at else None,
-                    "updated_at": transfer_time(str(goods.updated_at.isoformat())) if goods.updated_at else None,
+                    "created_at": transfer_time(str(goods.created_at.strftime('%Y-%m-%d %H:%M:%S'))) if goods.created_at else None,
+                    "updated_at": transfer_time(str(goods.updated_at.strftime('%Y-%m-%d %H:%M:%S'))) if goods.updated_at else None,
                     "collects_count": 0,
                     "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{goods.cover}',
                     "pics_url": goods_pics,
@@ -275,9 +275,9 @@ async def get_good_details(good_id: int, token: Optional[str] = Depends(oauth2_s
                             "reply": comment.reply,
                             "pics": json.loads(comment.pics) if comment.pics else [],
                             "created_at": transfer_time(
-                                str(comment.created_at.isoformat())) if comment.created_at else None,
+                                str(comment.created_at.strftime('%Y-%m-%d %H:%M:%S'))) if comment.created_at else None,
                             "updated_at": transfer_time(
-                                str(comment.updated_at.isoformat())) if comment.updated_at else None,
+                                str(comment.updated_at.strftime('%Y-%m-%d %H:%M:%S'))) if comment.updated_at else None,
                             "user": {
                                 "id": comment.user.id,
                                 "name": comment.user.name,
@@ -330,8 +330,8 @@ async def get_good_details(good_id: int, token: Optional[str] = Depends(oauth2_s
                 "is_on": 1 if bool(goods.is_on) else 0,
                 "is_recommend": 1 if bool(goods.is_recommend) else 0,
                 "details": goods.details,
-                "created_at": transfer_time(str(goods.created_at.isoformat())) if goods.created_at else None,
-                "updated_at": transfer_time(str(goods.updated_at.isoformat())) if goods.updated_at else None,
+                "created_at": transfer_time(str(goods.created_at.strftime('%Y-%m-%d %H:%M:%S'))) if goods.created_at else None,
+                "updated_at": transfer_time(str(goods.updated_at.strftime('%Y-%m-%d %H:%M:%S'))) if goods.updated_at else None,
                 "collects_count": 0,
                 "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{goods.cover}',
                 "pics_url": goods_pics,
@@ -349,9 +349,9 @@ async def get_good_details(good_id: int, token: Optional[str] = Depends(oauth2_s
                         "reply": comment.reply,
                         "pics": json.loads(comment.pics) if comment.pics else [],
                         "created_at": transfer_time(
-                            str(comment.created_at.isoformat())) if comment.created_at else None,
+                            str(comment.created_at.strftime('%Y-%m-%d %H:%M:%S'))) if comment.created_at else None,
                         "updated_at": transfer_time(
-                            str(comment.updated_at.isoformat())) if comment.updated_at else None,
+                            str(comment.updated_at.strftime('%Y-%m-%d %H:%M:%S'))) if comment.updated_at else None,
                         "user": {
                             "id": comment.user.id,
                             "name": comment.user.name,

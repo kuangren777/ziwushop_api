@@ -283,7 +283,7 @@ async def upload_cover_file(file: UploadFile = File(...)):
     # 为文件生成一个唯一的文件名
     file_extension = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid.uuid4()}{file_extension}"
-    file_path = os.path.join('upimg/goods_cover/', unique_filename)
+    file_path = os.path.join('upimg/', unique_filename)
 
     # 将上传的文件保存到服务器
     with open(file_path, "wb") as buffer:
@@ -291,6 +291,6 @@ async def upload_cover_file(file: UploadFile = File(...)):
             buffer.write(content)
 
     # 构造文件访问URL
-    file_url = f"http://127.0.0.1:8888/upimg/goods_cover/{unique_filename}"
+    file_url = f"http://127.0.0.1:8888/upimg/{unique_filename}"
 
     return JSONResponse(status_code=200, content={"url": file_url})

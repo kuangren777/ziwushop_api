@@ -125,8 +125,8 @@ async def get_comments_list(
             pics_url=[f"http://127.0.0.1:8888/upimg/goods_cover/{pic}" for pic in
                       comment.pics] if comment.pics else None,
             reply=comment.reply,
-            created_at=comment.created_at.isoformat(),
-            updated_at=comment.updated_at.isoformat(),
+            created_at=comment.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            updated_at=comment.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
             user=UserBase(**comment.user.__dict__) if comment.user else None,
             goods=GoodsBase(**comment.goods.__dict__) if comment.goods else None
         ) for comment in comments
@@ -219,8 +219,8 @@ async def get_comment_detail(
         pics=comment.pics,
         pics_url=[f"http://127.0.0.1:8888/upimg/comment_pics/{pic}" for pic in comment.pics] if comment.pics else None,
         reply=comment.reply,
-        created_at=comment.created_at.isoformat(),
-        updated_at=comment.updated_at.isoformat(),
+        created_at=comment.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        updated_at=comment.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
         user=UserDetail(**comment.user.__dict__) if "user" in include.split(',') and comment.user else None,
         goods=GoodsDetail(**comment.goods.__dict__) if "goods" in include.split(',') and comment.goods else None
     )

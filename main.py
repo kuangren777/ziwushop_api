@@ -32,6 +32,7 @@ from api.admin.goods import admin_goods
 from api.admin.comments import admin_comments
 from api.admin.orders import admin_orders
 from api.admin.menus import admin_menus
+from api.admin.slides import admin_slides
 
 # 启动网页服务
 import uvicorn
@@ -71,6 +72,7 @@ app.mount("/upimg/comments_pics", StaticFiles(directory="upimg/comments_pics"), 
 app.mount("/upimg/slides_img", StaticFiles(directory="upimg/slides_img"), name="slides_img")
 app.mount("/upimg/temp", StaticFiles(directory="upimg/temp"), name="temp_img")
 app.mount("/upimg", StaticFiles(directory="upimg"), name="default_img")
+app.mount("/upimg/default", StaticFiles(directory="upimg/default"), name="default_img_1")
 
 # 注册路由
 app.include_router(api_auth, prefix='/api/auth', tags=['权限接口'])
@@ -89,6 +91,7 @@ app.include_router(admin_goods, prefix='/api/admin/goods', tags=['地址接口']
 app.include_router(admin_comments, prefix='/api/admin/comments', tags=['地址接口'])
 app.include_router(admin_orders, prefix='/api/admin/orders', tags=['地址接口'])
 app.include_router(admin_menus, prefix='/api/admin/menus', tags=['地址接口'])
+app.include_router(admin_slides, prefix='/api/admin/slides', tags=['地址接口'])
 
 
 if __name__ == '__main__':

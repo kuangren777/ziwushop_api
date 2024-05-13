@@ -136,9 +136,9 @@ async def index(request: Request):
         }
 
     slides_query = await Slides.filter(status=1).order_by('seq').all()
-    slides = [SlidesTemp(s.id, s.title, s.url, f'upimg/slides_img/{s.img}', s.status, s.seq,
+    slides = [SlidesTemp(s.id, s.title, s.url, f'upimg/{s.img}', s.status, s.seq,
                          transfer_time(f"{s.created_at}"), transfer_time(f"{s.updated_at}"),
-                         f'http://127.0.0.1:8888/upimg/slides_img/{s.img}') for s in
+                         f'http://127.0.0.1:8888/upimg/{s.img}') for s in
               slides_query]
 
     links = [

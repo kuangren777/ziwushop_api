@@ -4,7 +4,7 @@
 # @File    : users.py
 # @Tags    :
 from fastapi import APIRouter, Query, Depends, HTTPException, Path, Body
-from typing import Optional, List
+from typing import Optional, List, Any
 from pydantic import BaseModel, HttpUrl, validator, constr, EmailStr
 from datetime import datetime
 from models import Users
@@ -53,7 +53,7 @@ class Meta(BaseModel):
 
 
 class UsersResponse(BaseModel):
-    data: List[User_Pydantic]
+    data: list[Any] = []
     meta: Meta
 
 
@@ -116,19 +116,40 @@ async def get_users(
     if phone:
         query = query.filter(phone=phone)
 
+    query = query.order_by("-created_at")
+
     # 计算总数和总页数
     total_count = await query.count()
     total_pages = (total_count + per_page - 1) // per_page
 
-    # 应用分页
-    results = await User_Pydantic.from_queryset(query.offset((current - 1) * per_page).limit(per_page))
+    # 应用分页并获取数据
+    users = await query.offset((current - 1) * per_page).limit(per_page)
+
+    # 格式化用户数据
+    formatted_users = []
+    for user in users:
+        avatar_url = user.avatar if user.avatar else "http://127.0.0.1:8888/upimg/avatars/default_avatars.jpg"
+        avatar = avatar_url
+        formatted_users.append({
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "phone": user.phone,
+            "avatar": avatar,
+            "avatar_url": avatar_url,
+            "is_locked": user.is_locked,
+            "created_at": user.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            "updated_at": user.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    print(formatted_users)
 
     return UsersResponse(
-        data=results,
+        data=formatted_users,
         meta=Meta(
             pagination=Pagination(
                 total=total_count,
-                count=len(results),
+                count=len(formatted_users),
                 per_page=per_page,
                 current_page=current,
                 total_pages=total_pages,
@@ -176,7 +197,8 @@ async def get_user_details(
         email=user_detail.email,
         phone=user_detail.phone,
         avatar=user_detail.avatar,
-        avatar_url=f'http://127.0.0.1:8888/upimg/avatar/{user_detail.avatar}' if user_detail.avatar else None,
+        avatar_url=f'http://127.0.0.1:8888/upimg/avatar/{user_detail.avatar}' if user_detail.avatar else
+        'http://127.0.0.1:8888/upimg/avatars/default_avatars.jpg',
         is_locked=user_detail.is_locked,
         created_at=formatted_created_at,
         updated_at=formatted_updated_at

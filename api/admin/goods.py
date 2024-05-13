@@ -122,8 +122,8 @@ async def get_goods_list(
             is_on=goods.is_on,
             is_recommend=goods.is_recommend,
             details=goods.details,
-            created_at=goods.created_at.isoformat(),
-            updated_at=goods.updated_at.isoformat()
+            created_at=goods.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            updated_at=goods.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
         ))
 
     return GoodsResponse(
@@ -190,7 +190,7 @@ async def create_goods(
         description=goods_data.description if goods_data.description else '暂无',
         price=goods_data.price,
         stock=goods_data.stock,
-        cover=goods_data.cover[40:] if goods_data.cover else 'default.png',
+        cover=goods_data.cover[28:] if goods_data.cover else 'default.png',
         pics=goods_data.pics if goods_data.pics else [],
         details=goods_data.details if goods_data.details else '暂无'
     )
@@ -280,8 +280,8 @@ async def get_good_details(
         is_on=good.is_on,
         is_recommend=good.is_recommend,
         details=good.details,
-        created_at=good.created_at.isoformat(),
-        updated_at=good.updated_at.isoformat(),
+        created_at=good.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        updated_at=good.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
         category=good.category if "category" in flag else None,
         user=good.user if "user" in flag else None,
         comments=[comment for comment in good.reviews] if "comments" in flag else None
