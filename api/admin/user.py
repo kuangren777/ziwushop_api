@@ -55,8 +55,8 @@ async def get_current_user_info(token: str = Depends(oauth2_scheme)):
         email=user.email,
         phone=user.phone,
         avatar=user.avatar,
-        avatar_url=f'http://127.0.0.1:8888/upimg/avatar/{user.avatar}' if user.avatar else
-        'http://127.0.0.1:8888/upimg/avatar/default_avatars.jpg',
+        avatar_url=f'http://127.0.0.1:8888/upimg/avatars/{user.avatar}' if user.avatar else
+        'http://127.0.0.1:8888/upimg/avatars/default_avatars.jpg',
         is_locked=user.is_locked,
         created_at=formatted_created_at,
         updated_at=formatted_updated_at
