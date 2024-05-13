@@ -30,6 +30,8 @@ from api.admin.user import admin_user
 from api.admin.category import admin_category
 from api.admin.goods import admin_goods
 from api.admin.comments import admin_comments
+from api.admin.orders import admin_orders
+from api.admin.menus import admin_menus
 
 # 启动网页服务
 import uvicorn
@@ -85,6 +87,8 @@ app.include_router(admin_user, prefix='/api/admin/user', tags=['地址接口'])
 app.include_router(admin_category, prefix='/api/admin/category', tags=['地址接口'])
 app.include_router(admin_goods, prefix='/api/admin/goods', tags=['地址接口'])
 app.include_router(admin_comments, prefix='/api/admin/comments', tags=['地址接口'])
+app.include_router(admin_orders, prefix='/api/admin/orders', tags=['地址接口'])
+app.include_router(admin_menus, prefix='/api/admin/menus', tags=['地址接口'])
 
 
 if __name__ == '__main__':
