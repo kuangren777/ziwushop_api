@@ -3,7 +3,12 @@
 # @Author  : KuangRen777
 # @File    : authority.py
 # @Tags    :
-from fastapi import APIRouter, HTTPException, status, Body, Request
+import os
+import uuid
+
+from fastapi import APIRouter, HTTPException, status, Body, Request, UploadFile, File
+from fastapi.responses import JSONResponse
+
 from models import Users
 from tortoise.contrib.fastapi import HTTPNotFoundError
 from pydantic import BaseModel, EmailStr, Field
@@ -272,3 +277,20 @@ async def update_email(request: EmailUpdateRequest, token: str = Depends(oauth2_
 
     return {}
 
+
+@api_auth.post("/upload")
+async def upload_cover_file(file: UploadFile = File(...)):
+    # 为文件生成一个唯一的文件名
+    file_extension = os.path.splitext(file.filename)[1]
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    file_path = os.path.join('upimg/goods_cover/', unique_filename)
+
+    # 将上传的文件保存到服务器
+    with open(file_path, "wb") as buffer:
+        while content := await file.read(1024):  # 读取文件内容并写入
+            buffer.write(content)
+
+    # 构造文件访问URL
+    file_url = f"http://127.0.0.1:8888/upimg/goods_cover/{unique_filename}"
+
+    return JSONResponse(status_code=200, content={"url": file_url})
