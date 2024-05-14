@@ -9,6 +9,8 @@ from tortoise.functions import Count
 from tortoise.query_utils import Prefetch
 import json
 from pydantic import BaseModel
+from recommend_test_by_strategy import recommend_for_user, adjust_weights_for_product
+from redis_weight import RedisWeightsManager
 
 import jieba
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -26,11 +28,13 @@ import asyncio
 from utils import *
 
 api_goods = APIRouter()
+redis_weights_manager = RedisWeightsManager()
 
 
 # 自定义 jieba 分词器
 def jieba_tokenizer(text):
     return jieba.lcut(text)
+
 
 # 初始化 TF-IDF 和 StandardScaler
 text_features = 'description'
@@ -99,7 +103,20 @@ class CommentRequest(BaseModel):
 
 
 @api_goods.get('')
-async def goods(request: Request):
+async def goods(request: Request, token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Ensure the user exists
+    user = await Users.get_or_none(email=user_email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    else:
+        user_id = user.id
+
     # Extract query parameters
     page = int(request.query_params.get('page', 1)) - 1
     title = request.query_params.get('title', None)
@@ -123,7 +140,13 @@ async def goods(request: Request):
         query = query.filter(category_id=category_id)
 
     if recommend == 1:
-        query = query.filter(is_recommend=1)
+        if user_id:
+            user_weights = redis_weights_manager.get_user_weights_else_global(user_id)
+
+            recommendations = recommend_for_user(user_id, user_weights)
+
+            recommended_ids = [g[0] for g in recommendations]
+            query = query.filter(id__in=recommended_ids)
 
     # Apply sort
     sort_expr = []
@@ -144,13 +167,14 @@ async def goods(request: Request):
     goods_list = await query.offset(page * 10).limit(10).all()
     goods_list = [GoodsTemp(g.id, g.title, g.price, g.cover, g.category_id, g.sales, transfer_time(str(g.updated_at)),
                             g.comments_count, 0,
-                            f'http://127.0.0.1:8888/upimg/goods_cover/{g.cover}') for g in goods_list]
+                            f'http://127.0.0.1:8888/upimg/{g.cover}') for g in goods_list]
 
     # Prepare the response
     # total_items = await query.count()
     # total_pages = (total_items + 9) // 10
 
     recommend_goods = await Goods.filter(is_recommend=1).offset(0).limit(10).all()
+
     return {
         "goods": {
             "current_page": page + 1,
@@ -199,119 +223,131 @@ async def get_good_details(good_id: int, token: Optional[str] = Depends(oauth2_s
         if not goods:
             raise HTTPException(status_code=404, detail="Goods not found")
 
-        # 所有商品数据，用于生成推荐
-        all_goods = await Goods.all()
-        goods_data = [{
-            'id': g.id,
-            'title': g.title,
-            'description': g.description,
-            'price': g.price
-        } for g in all_goods]
+        # # 所有商品数据，用于生成推荐
+        # all_goods = await Goods.all()
+        # goods_data = [{
+        #     'id': g.id,
+        #     'title': g.title,
+        #     'description': g.description,
+        #     'price': g.price
+        # } for g in all_goods]
+        #
+        # print(goods_data)
+        #
+        # df = pd.DataFrame(goods_data)
+        # X_transformed = preprocessor.fit_transform(df)
+        # cosine_sim = cosine_similarity(X_transformed, X_transformed)
+        #
+        # # 从订单中找到用户购买过的商品
+        # orders = await models.Orders.filter(user_id=user_id).all()
+        # order_ids = [order.id for order in orders]
+        # order_details = await models.OrderDetails.filter(order_id__in=order_ids).all()
+        # purchased_goods_ids = [detail.goods_id for detail in order_details]
+        #
+        # # 获取这些商品
+        # purchased_goods = await models.Goods.filter(id__in=purchased_goods_ids).all()
+        #
+        # user_goods_ids = [g.id for g in purchased_goods]
+        #
+        # # 获取商品ID到索引的映射
+        # goods_id_to_index = {g['id']: idx for idx, g in enumerate(goods_data)}
+        # # print(goods_id_to_index)
+        # valid_indices = [goods_id_to_index[ugid] for ugid in user_goods_ids if ugid in goods_id_to_index]
+        #
+        # # 获取用户购买过的商品
+        # if not valid_indices:
+        #     return {
+        #         "goods": {
+        #             "id": goods.id,
+        #             "user_id": goods.user.id,
+        #             # "user_name": goods.user.name,
+        #             "category_id": goods.category.id,
+        #             # "category_name": goods.category.name,
+        #             "title": goods.title,
+        #             "description": goods.description,
+        #             "price": goods.price,
+        #             "stock": goods.stock,
+        #             "sales": goods.sales,
+        #             "cover": goods.cover,
+        #             "pics": goods.pics,
+        #             "is_on": 1 if bool(goods.is_on) else 0,
+        #             "is_recommend": 1 if bool(goods.is_recommend) else 0,
+        #             "details": goods.details,
+        #             "created_at": transfer_time(str(goods.created_at.strftime('%Y-%m-%d %H:%M:%S'))) if goods.created_at else None,
+        #             "updated_at": transfer_time(str(goods.updated_at.strftime('%Y-%m-%d %H:%M:%S'))) if goods.updated_at else None,
+        #             "collects_count": 0,
+        #             "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{goods.cover}',
+        #             "pics_url": goods_pics,
+        #             "is_collected": 0,
+        #             "comments": [
+        #                 {
+        #                     "id": comment.id,
+        #                     "user_id": comment.user.id,
+        #                     # "user_name": comment.user.name,
+        #                     "order_id": comment.order.id,
+        #                     "goods_id": goods.id,
+        #                     "rate": comment.rate,
+        #                     "star": comment.star,
+        #                     "content": comment.content,
+        #                     "reply": comment.reply,
+        #                     "pics": json.loads(comment.pics) if comment.pics else [],
+        #                     "created_at": transfer_time(
+        #                         str(comment.created_at.strftime('%Y-%m-%d %H:%M:%S'))) if comment.created_at else None,
+        #                     "updated_at": transfer_time(
+        #                         str(comment.updated_at.strftime('%Y-%m-%d %H:%M:%S'))) if comment.updated_at else None,
+        #                     "user": {
+        #                         "id": comment.user.id,
+        #                         "name": comment.user.name,
+        #                         "avatar": comment.user.avatar,
+        #                         "avatar_url": f'http://127.0.0.1:8888/upimg/avatars/{comment.user.avatar}'
+        #                         if comment.user.avatar else None,
+        #                     }
+        #                 } for comment in goods.reviews
+        #             ]
+        #         },
+        #         "like_goods": [
+        #             {
+        #                 "id": lg.id,
+        #                 "title": lg.title,
+        #                 "price": lg.price,
+        #                 "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{lg.cover}',
+        #                 "sales": lg.sales
+        #             } for lg in like_goods
+        #         ],
+        #         "recommend_goods": []
+        #     }
 
-        print(goods_data)
-
-        df = pd.DataFrame(goods_data)
-        X_transformed = preprocessor.fit_transform(df)
-        cosine_sim = cosine_similarity(X_transformed, X_transformed)
-
-        # 从订单中找到用户购买过的商品
-        orders = await models.Orders.filter(user_id=user_id).all()
-        order_ids = [order.id for order in orders]
-        order_details = await models.OrderDetails.filter(order_id__in=order_ids).all()
-        purchased_goods_ids = [detail.goods_id for detail in order_details]
-
-        # 获取这些商品
-        purchased_goods = await models.Goods.filter(id__in=purchased_goods_ids).all()
-
-        user_goods_ids = [g.id for g in purchased_goods]
-
-        # Convert goods IDs to DataFrame indices
-        goods_id_to_index = {g['id']: idx for idx, g in enumerate(goods_data)}
-        # print(goods_id_to_index)
-        valid_indices = [goods_id_to_index[ugid] for ugid in user_goods_ids if ugid in goods_id_to_index]
-
-        # Assuming 'like_goods' are similar items in the same category excluding the current item
+        # 获取用户购买过的商品
         like_goods = await Goods.filter(category=goods.category).exclude(id=good_id).limit(5).all()
-
-        # Check if goods.pics is already a dict or list; if not, parse it
+        #
+        # # 获取商品图片
         goods_pics = goods.pics if isinstance(goods.pics, (dict, list)) else json.loads(
             goods.pics) if goods.pics else []
+        #
+        # top_n = 4
+        #
+        # # 计算相似度
+        # sim_scores = cosine_sim[valid_indices].mean(axis=0)
+        # top_indices = np.argsort(sim_scores)[::-1][:top_n]
+        #
+        # # 获取推荐商品（排除已购买的）
+        # recommended_ids = [df.iloc[i]['id'] for i in top_indices if df.iloc[i]['id'] not in purchased_goods_ids][:top_n]
+        # recommended_goods = await Goods.filter(id__in=recommended_ids).all()
+        # print(recommended_goods)
 
-        # Check if indices are valid
-        if not valid_indices:
-            return {
-                "goods": {
-                    "id": goods.id,
-                    "user_id": goods.user.id,
-                    # "user_name": goods.user.name,
-                    "category_id": goods.category.id,
-                    # "category_name": goods.category.name,
-                    "title": goods.title,
-                    "description": goods.description,
-                    "price": goods.price,
-                    "stock": goods.stock,
-                    "sales": goods.sales,
-                    "cover": goods.cover,
-                    "pics": goods.pics,
-                    "is_on": 1 if bool(goods.is_on) else 0,
-                    "is_recommend": 1 if bool(goods.is_recommend) else 0,
-                    "details": goods.details,
-                    "created_at": transfer_time(str(goods.created_at.strftime('%Y-%m-%d %H:%M:%S'))) if goods.created_at else None,
-                    "updated_at": transfer_time(str(goods.updated_at.strftime('%Y-%m-%d %H:%M:%S'))) if goods.updated_at else None,
-                    "collects_count": 0,
-                    "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{goods.cover}',
-                    "pics_url": goods_pics,
-                    "is_collected": 0,
-                    "comments": [
-                        {
-                            "id": comment.id,
-                            "user_id": comment.user.id,
-                            # "user_name": comment.user.name,
-                            "order_id": comment.order.id,
-                            "goods_id": goods.id,
-                            "rate": comment.rate,
-                            "star": comment.star,
-                            "content": comment.content,
-                            "reply": comment.reply,
-                            "pics": json.loads(comment.pics) if comment.pics else [],
-                            "created_at": transfer_time(
-                                str(comment.created_at.strftime('%Y-%m-%d %H:%M:%S'))) if comment.created_at else None,
-                            "updated_at": transfer_time(
-                                str(comment.updated_at.strftime('%Y-%m-%d %H:%M:%S'))) if comment.updated_at else None,
-                            "user": {
-                                "id": comment.user.id,
-                                "name": comment.user.name,
-                                "avatar": comment.user.avatar,
-                                "avatar_url": f'http://127.0.0.1:8888/upimg/avatars/{comment.user.avatar}'
-                                if comment.user.avatar else None,
-                            }
-                        } for comment in goods.reviews
-                    ]
-                },
-                "like_goods": [
-                    {
-                        "id": lg.id,
-                        "title": lg.title,
-                        "price": lg.price,
-                        "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{lg.cover}',
-                        "sales": lg.sales
-                    } for lg in like_goods
-                ],
-                "recommend_goods": []
-            }
+        global_weights = redis_weights_manager.get_global_weights()
+        user_weights = redis_weights_manager.get_user_weights_else_global(user_id)
 
-        top_n = 4
-
-        # Calculate average similarity scores for user's goods
-        sim_scores = cosine_sim[valid_indices].mean(axis=0)
-        top_indices = np.argsort(sim_scores)[::-1][:top_n]
-
-        # Fetch recommended goods by ID
-        recommended_ids = [df.iloc[i]['id'] for i in top_indices]
-        # 获取推荐商品（排除已购买的）
-        recommended_ids = [df.iloc[i]['id'] for i in top_indices if df.iloc[i]['id'] not in purchased_goods_ids][:top_n]
-        recommended_goods = await Goods.filter(id__in=recommended_ids).all()
+        recommendations = recommend_for_user(user_id, user_weights)
+        recommended_goods_id = [g[0] for g in recommendations]
+        recommended_goods = Goods.filter(id__in=recommended_goods_id)
+        recommended_goods = await recommended_goods.filter(is_on=1)
         print(recommended_goods)
+
+        user_weights = adjust_weights_for_product(user_id, good_id, user_weights, "view")
+        global_weights = adjust_weights_for_product(user_id, good_id, global_weights, "view")
+        redis_weights_manager.set_weights(user_id, user_weights)
+        redis_weights_manager.set_global_weights(global_weights)
 
         return {
             "goods": {
@@ -333,7 +369,7 @@ async def get_good_details(good_id: int, token: Optional[str] = Depends(oauth2_s
                 "created_at": transfer_time(str(goods.created_at.strftime('%Y-%m-%d %H:%M:%S'))) if goods.created_at else None,
                 "updated_at": transfer_time(str(goods.updated_at.strftime('%Y-%m-%d %H:%M:%S'))) if goods.updated_at else None,
                 "collects_count": 0,
-                "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{goods.cover}',
+                "cover_url": f'http://127.0.0.1:8888/upimg/{goods.cover}',
                 "pics_url": goods_pics,
                 "is_collected": 0,
                 "comments": [
@@ -367,7 +403,7 @@ async def get_good_details(good_id: int, token: Optional[str] = Depends(oauth2_s
                     "id": lg.id,
                     "title": lg.title,
                     "price": lg.price,
-                    "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{lg.cover}',
+                    "cover_url": f'http://127.0.0.1:8888/upimg/{lg.cover}' if lg.cover else 'http://127.0.0.1:8888/upimg/goods_cover/default.png',
                     "sales": lg.sales
                 } for lg in like_goods
             ],
@@ -376,7 +412,7 @@ async def get_good_details(good_id: int, token: Optional[str] = Depends(oauth2_s
                     "id": rg.id,
                     "title": rg.title,
                     "price": rg.price,
-                    "cover_url": f'http://127.0.0.1:8888/upimg/goods_cover/{rg.cover}',
+                    "cover_url": f'http://127.0.0.1:8888/upimg/{rg.cover}' if rg.cover else 'http://127.0.0.1:8888/upimg/goods_cover/default.png',
                     "sales": rg.sales
                 } for rg in recommended_goods
             ]
@@ -384,8 +420,6 @@ async def get_good_details(good_id: int, token: Optional[str] = Depends(oauth2_s
 
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
-
-
 
 
 @api_goods.post("/comment", status_code=status.HTTP_201_CREATED)

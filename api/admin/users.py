@@ -142,7 +142,7 @@ async def get_users(
             "updated_at": user.updated_at.strftime('%Y-%m-%d %H:%M:%S')
         })
 
-    print(formatted_users)
+    # print(formatted_users)
 
     return UsersResponse(
         data=formatted_users,

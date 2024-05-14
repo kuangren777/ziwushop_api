@@ -102,6 +102,10 @@ async def login(user_credentials: LoginModel):
     if not pwd_context.verify(user_credentials.password, user.password):
         return HTTPException(status_code=401, detail="密码错误")
 
+    # 更新用户的 update_at 字段为当前日期
+    user.update_at = datetime.utcnow()
+    await user.save()
+
     # 创建JWT token
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     token_data = {

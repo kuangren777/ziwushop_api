@@ -13,10 +13,13 @@ import shutil
 import os
 from typing import List, Optional
 
+from recommend_test_by_strategy import *
+from redis_weight import RedisWeightsManager
+
 from utils import *
 
 api_cart = APIRouter()
-
+redis_weights_manager = RedisWeightsManager()
 
 class CartItemAddRequest(BaseModel):
     goods_id: int
@@ -124,6 +127,13 @@ async def add_to_cart(item_request: CartItemAddRequest, token: str = Depends(oau
     if not goods:
         raise HTTPException(status_code=404, detail="Goods not found")
 
+    user_weights = adjust_weights_for_product(user_id, goods, redis_weights_manager.get_weights(user_id),
+                                              "add_cart")
+    global_weights = adjust_weights_for_product(user_id, goods, redis_weights_manager.get_global_weights(),
+                                                "add_cart")
+    redis_weights_manager.set_weights(user_id, user_weights)
+    redis_weights_manager.set_global_weights(global_weights)
+
     # Check if the item is already in the cart
     cart_item = await Cart.get_or_none(user_id=user_id, goods_id=item_request.goods_id)
     if cart_item:
@@ -181,7 +191,7 @@ async def get_cart_items(request: Request, token: str = Depends(oauth2_scheme)):
                         stock=item.goods.stock,
                         sales=item.goods.sales,
                         cover=item.goods.cover,
-                        cover_url=f'http://127.0.0.1:8888/upimg/goods_cover/{item.goods.cover}',
+                        cover_url=f'http://127.0.0.1:8888/upimg/{item.goods.cover}',
                         pics=item.goods.pics,
                         pics_url=[],  # TODO: 这里还没弄
                         details=item.goods.details,

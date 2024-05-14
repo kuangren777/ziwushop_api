@@ -14,10 +14,13 @@ import os
 from typing import List, Optional
 from tortoise.transactions import in_transaction
 import re
+from redis_weight import RedisWeightsManager
+from recommend_test_by_strategy import *
 
 from utils import *
 
 api_orders = APIRouter()
+redis_weights_manager = RedisWeightsManager()
 
 
 class GoodsTemp:
@@ -25,7 +28,7 @@ class GoodsTemp:
         self.id = id
         self.cover = cover
         self.title = title
-        self.cover_url = f'http://127.0.0.1:8888/upimg/goods_cover/{self.cover}'
+        self.cover_url = f'http://127.0.0.1:8888/upimg/{self.cover}'
 
     def dict(self):
         return {
@@ -41,7 +44,7 @@ class GoodsTempWithPrice:
         self.id = id
         self.cover = cover
         self.title = title
-        self.cover_url = f'http://127.0.0.1:8888/upimg/goods_cover/{self.cover}'
+        self.cover_url = f'http://127.0.0.1:8888/upimg/{self.cover}'
         self.price = price
 
     def dict(self):
@@ -325,6 +328,13 @@ async def submit_order(address_id: int, token: str = Depends(oauth2_scheme)):
         for item in cart_items:
             if item.goods.stock < item.num:
                 raise HTTPException(status_code=400, detail=f"{item.goods.title} stock is insufficient.")
+
+            user_weights = adjust_weights_for_product(user_id, item, redis_weights_manager.get_weights(user_id),
+                                                      "purchase")
+            global_weights = adjust_weights_for_product(user_id, item, redis_weights_manager.get_global_weights(),
+                                                        "purchase")
+            redis_weights_manager.set_weights(user_id, user_weights)
+            redis_weights_manager.set_global_weights(global_weights)
 
             # Update stock
             item.goods.stock -= item.num
@@ -948,4 +958,3 @@ async def get_order_status(
     await order.save()
 
     return '2'
-

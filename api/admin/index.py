@@ -26,6 +26,11 @@ async def index_stats():
         today_users_count = await Users.filter(created_at__gte=today_start, created_at__lte=today_end).count()
         yesterday_users_count = await Users.filter(created_at__gte=yesterday_start, created_at__lte=yesterday_end).count()
 
+        # 用户更新统计
+        today_users_updated_count = await Users.filter(updated_at__gte=today_start, updated_at__lte=today_end).count()
+        yesterday_users_updated_count = await Users.filter(updated_at__gte=yesterday_start,
+                                                           updated_at__lte=yesterday_end).count()
+
         # 商品统计
         goods_count = await Goods.all().count()
         on_goods_count = await Goods.filter(is_on=1).count()
@@ -53,8 +58,8 @@ async def index_stats():
                 "recommend_nums": recommend_goods_count
             },
             "users_info": {
-                "today_nums": today_users_count,
-                "yesterday_nums": yesterday_users_count,
+                "today_nums": today_users_updated_count,
+                "yesterday_nums": yesterday_users_updated_count,
                 "total_nums": users_count
             },
             "order_info": {

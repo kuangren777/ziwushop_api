@@ -3,9 +3,11 @@
 # @Author  : KuangRen777
 # @File    : index.py
 # @Tags    :
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends, HTTPException
 from models import Slides, Goods, Category
 from datetime import datetime
+
+from recommend_test_by_strategy import recommend_for_user, adjust_weights_for_product
 
 from utils import *
 
@@ -79,7 +81,20 @@ class SlidesTemp:
 
 
 @api_index.get('')
-async def index(request: Request):
+async def index(request: Request, token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Ensure the user exists
+    user = await Users.get_or_none(email=user_email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    else:
+        user_id = user.id
+
     json_data = request.query_params
     page = int(json_data.get('page', 1)) - 1  # API 通常从第1页开始计数，而程序内部从第0页开始
     sales = json_data.get('sales', '0') == '1'
@@ -94,7 +109,11 @@ async def index(request: Request):
     if sales:
         goods_query = goods_query.filter(sales__gt=50).order_by('-sales')
     if recommend:
-        goods_query = goods_query.filter(is_recommend=1)
+        if user_id:
+            recommendations = recommend_for_user(user_id)
+
+            recommended_ids = [g[0] for g in recommendations]
+            goods_query = goods_query.filter(id__in=recommended_ids)
     if new:
         goods_query = goods_query.order_by('-created_at')
 
@@ -120,8 +139,8 @@ async def index(request: Request):
         goods_query = goods_query.offset(page * 10).limit(10)
         goods_list = await goods_query
 
-        goods = [GoodsTemp(g.id, g.title, g.price, g.stock, g.sales, f'upimg/goods_cover/{g.cover}.png',
-                           g.description, 0, f'http://127.0.0.1:8888/upimg/goods_cover/{g.cover}') for g in goods_list]
+        goods = [GoodsTemp(g.id, g.title, g.price, g.stock, g.sales, f'{g.cover}',
+                           g.description, 0, f'http://127.0.0.1:8888/upimg/{g.cover}') for g in goods_list]
 
         goods_resp = {
             "current_page": page + 1,

@@ -116,9 +116,9 @@ async def get_goods_list(
             stock=goods.stock,
             sales=goods.sales,
             cover=goods.cover,
-            cover_url=f'http://127.0.0.1:8888/upimg/goods_cover/{goods.cover}',
+            cover_url=f'http://127.0.0.1:8888/upimg/{goods.cover}',
             pics=goods.pics,
-            pics_url=[f'http://127.0.0.1:8888/upimg/goods_cover/{pic}' for pic in goods.pics],
+            pics_url=[f'http://127.0.0.1:8888/upimg/{pic}' for pic in goods.pics],
             is_on=goods.is_on,
             is_recommend=goods.is_recommend,
             details=goods.details,
@@ -190,7 +190,7 @@ async def create_goods(
         description=goods_data.description if goods_data.description else '暂无',
         price=goods_data.price,
         stock=goods_data.stock,
-        cover=goods_data.cover[28:] if goods_data.cover else 'default.png',
+        cover=goods_data.cover[28:] if goods_data.cover else 'goods_cover/default.png',
         pics=goods_data.pics if goods_data.pics else [],
         details=goods_data.details if goods_data.details else '暂无'
     )
@@ -274,9 +274,9 @@ async def get_good_details(
         stock=good.stock,
         sales=good.sales,
         cover=good.cover,
-        cover_url=f'http://127.0.0.1:8888/goods_cover/{good.cover}',
+        cover_url=f'http://127.0.0.1:8888/{good.cover}',
         pics=good.pics,
-        pics_url=[f"http://127.0.0.1:8888/goods_cover/{pic}" for pic in good.pics],
+        pics_url=[f"http://127.0.0.1:8888/{pic}" for pic in good.pics],
         is_on=good.is_on,
         is_recommend=good.is_recommend,
         details=good.details,
@@ -332,7 +332,8 @@ async def update_goods(
     good.description = goods_data.description
     good.price = goods_data.price
     good.stock = goods_data.stock
-    good.cover = goods_data.cover
+    if len(goods_data.cover) > 40:
+        good.cover = goods_data.cover[28:]
     good.pics = goods_data.pics
     good.details = goods_data.details
     await good.save()
